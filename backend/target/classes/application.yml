@@ -1,0 +1,32 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: coworking-booking-system
+  datasource:
+    url: jdbc:postgresql://localhost:5432/coworking_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:Za081150}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+logging:
+  level:
+    com.coworking.booking: DEBUG
+
+# LINE Notification Configuration
+# To enable LINE Notify: set line.notify.token to your LINE Notify token
+# To enable LINE Messaging API Push: set line.channel.token to your channel access token
+line:
+  notify:
+    token: ${LINE_NOTIFY_TOKEN:}
+  channel:
+    token: ${LINE_CHANNEL_TOKEN:}

@@ -1,0 +1,10 @@
+const fs = require('fs');
+const path = 'D:\\User\\Supakon\\Desktop\\Coworking Space Booking System\\frontend\\src\\app\\page.tsx';
+const content = fs.readFileSync(path, 'utf8');
+console.log('File length:', content.length);
+console.log('Has dateOptions:', content.includes('dateOptions'));
+console.log('Has endHour:', content.includes('endHour'));
+console.log('Has durationHours:', content.includes('durationHours'));
+console.log('Has select:', content.includes('<select'));
+console.log('Has type=date:', content.includes('type="date"'));
+console.log('Has value=duration:', content.includes('value={duration}'));
