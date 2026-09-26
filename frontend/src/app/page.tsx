@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { 
@@ -18,7 +19,9 @@ import {
   Layers,
   Wind,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  Building2
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -26,9 +29,87 @@ export default function LandingPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
+  // ── Room dropdown state ──
+  const [roomDropdownOpen, setRoomDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // ── Admin customization state ──
+  const [customData, setCustomData] = useState<Record<string, { price: number; proPrice: number; image: string }>>({});
+  const [membershipCustom, setMembershipCustom] = useState<Record<string, { price: number; quotaText?: string; discountText?: string }>>({
+    BASIC: { price: 0, quotaText: 'โควตาจอง 20 ชม./เดือน' },
+    PRO: { price: 100, quotaText: 'ส่วนลด 15% ทุกห้อง • โควตา 80 ชม.' },
+    ENTERPRISE: { price: 150, quotaText: 'ส่วนลด 30% ทุกห้อง • โควตา Unlimited' }
+  });
+
+  // Load admin customization from LocalStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('adminPageCustomization');
+      if (saved) {
+        const parsed = JSON.parse(saved) as Array<{ id: string; price: number; proPrice: number; image: string }>;
+        const map: Record<string, { price: number; proPrice: number; image: string }> = {};
+        parsed.forEach(r => { map[r.id] = { price: r.price, proPrice: r.proPrice, image: r.image }; });
+        setCustomData(map);
+      }
+    } catch { /* ignore */ }
+
+    try {
+      const savedMem = localStorage.getItem('adminMembershipCustomization');
+      if (savedMem) {
+        const parsedMem = JSON.parse(savedMem);
+        setMembershipCustom(prev => ({ ...prev, ...parsedMem }));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // ── Dynamic Workspaces & Dealer Rooms ──
+  const [workspaceList, setWorkspaceList] = useState<any[]>([]);
+  const [roomList, setRoomList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadSpacesAndRooms = async () => {
+      try {
+        const [wsRes, rmRes, memRes] = await Promise.all([
+          fetch('/api/v1/workspaces').then(r => r.ok ? r.json() : []).catch(() => []),
+          fetch('/api/v1/rooms').then(r => r.ok ? r.json() : []).catch(() => []),
+          fetch('/api/v1/memberships').then(r => r.ok ? r.json() : []).catch(() => [])
+        ]);
+        if (Array.isArray(wsRes)) setWorkspaceList(wsRes);
+        if (Array.isArray(rmRes)) setRoomList(rmRes);
+        if (Array.isArray(memRes) && memRes.length > 0) {
+          setMembershipCustom(prev => {
+            const next = { ...prev };
+            memRes.forEach((m: any) => {
+              const tier = m.tier?.toUpperCase();
+              if (tier && next[tier]) {
+                next[tier] = { ...next[tier], price: Number(m.priceMonthly) };
+              }
+            });
+            return next;
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load workspaces, rooms or memberships:', err);
+      }
+    };
+    loadSpacesAndRooms();
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setRoomDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const slides = [
     {
-      image: '/images/meeting-room.jpg',
+      image: customData['RM-MTG-201']?.image ?? customData['slide-meeting']?.image ?? '/images/summit-boardroom.jpg',
       badge: '● ระบบ AI Video Conference & ผนังมอสส์ธรรมชาติ',
       tag: 'PREMIUM ROOM',
       available: true,
@@ -40,11 +121,11 @@ export default function LandingPage() {
         { icon: '💨', label: 'Air Quality Sensor' },
         { icon: '📶', label: '1 Gbps Fiber WiFi' },
       ],
-      price: 450,
-      proPrice: 382.50,
+      price: customData['RM-MTG-201']?.price ?? customData['slide-meeting']?.price ?? 450,
+      proPrice: customData['RM-MTG-201']?.proPrice ?? customData['slide-meeting']?.proPrice ?? 382.50,
     },
     {
-      image: '/images/executive-suite.jpg',
+      image: customData['RM-OFF-301']?.image ?? customData['slide-executive']?.image ?? '/images/executive-suite.jpg',
       badge: '● Biometric Security & HEPA Air Filtration',
       tag: 'PRIVATE SUITE',
       available: true,
@@ -56,11 +137,11 @@ export default function LandingPage() {
         { icon: '🌡️', label: 'Smart Thermostat' },
         { icon: '📶', label: '1 Gbps Fiber WiFi' },
       ],
-      price: 600,
-      proPrice: 510,
+      price: customData['RM-OFF-301']?.price ?? customData['slide-executive']?.price ?? 600,
+      proPrice: customData['RM-OFF-301']?.proPrice ?? customData['slide-executive']?.proPrice ?? 510,
     },
     {
-      image: '/images/hot-desk-room.jpg',
+      image: customData['RM-HOT-101']?.image ?? customData['slide-hotdesk']?.image ?? '/images/hot-desk-room.jpg',
       badge: '● พลังงานแสงอาทิตย์ 100% & Fast-Charge Ports',
       tag: 'HOT DESK',
       available: true,
@@ -72,11 +153,11 @@ export default function LandingPage() {
         { icon: '☀️', label: 'Solar Power 100%' },
         { icon: '📶', label: 'WiFi 6E 2 Gbps' },
       ],
-      price: 80,
-      proPrice: 68,
+      price: customData['RM-HOT-101']?.price ?? customData['slide-hotdesk']?.price ?? 80,
+      proPrice: customData['RM-HOT-101']?.proPrice ?? customData['slide-hotdesk']?.proPrice ?? 68,
     },
     {
-      image: '/images/soundproof-booth.jpg',
+      image: customData['RM-PHN-401']?.image ?? customData['slide-soundproof']?.image ?? '/images/soundproof-booth.jpg',
       badge: '● กระจกนิรภัย 2 ชั้น & Acoustic Foam',
       tag: 'PHONE BOOTH',
       available: true,
@@ -88,8 +169,8 @@ export default function LandingPage() {
         { icon: '🎙️', label: 'Podcast Ready' },
         { icon: '📶', label: 'WiFi 500 Mbps' },
       ],
-      price: 50,
-      proPrice: 42.50,
+      price: customData['RM-PHN-401']?.price ?? customData['slide-soundproof']?.price ?? 50,
+      proPrice: customData['RM-PHN-401']?.proPrice ?? customData['slide-soundproof']?.proPrice ?? 42.50,
     },
   ];
 
@@ -99,40 +180,40 @@ export default function LandingPage() {
       title: 'Smart Meeting Room (8-P)',
       category: 'Meeting & Conference',
       desc: 'ห้องประชุมระบบ Eco-Smart ผนังต้นไม้ฟอกอากาศ จอสัมผัส 4K พร้อมระบบ AI Video Conference และระบบควบคุม CO2 ต่ำ',
-      price: 450,
+      price: customData['RM-MTG-201']?.price ?? customData['slide-meeting']?.price ?? 450,
       capacity: 'สูงสุด 8 ท่าน',
       badge: 'พร้อมอุปกรณ์ AV เต็มรูปแบบ',
-      image: '/images/meeting-room.jpg'
+      image: customData['RM-MTG-201']?.image ?? customData['slide-meeting']?.image ?? '/images/summit-boardroom.jpg'
     },
     {
       id: 'RM-HOT-101',
       title: 'Hot Desk Solar Pod',
       category: 'Individual Workspace',
       desc: 'โต๊ะทำงานส่วนตัวท่ามกลางธรรมชาติจำลอง ใช้ไฟพลังงานแสงอาทิตย์ 100% พร้อมพอร์ต Fast-Charge และ WiFi 6E',
-      price: 80,
+      price: customData['RM-HOT-101']?.price ?? customData['slide-hotdesk']?.price ?? 80,
       capacity: '1 ท่าน',
       badge: 'ลด 20% เมื่อจอง 8 ชม.+',
-      image: '/images/hot-desk-room.jpg'
+      image: customData['RM-HOT-101']?.image ?? customData['slide-hotdesk']?.image ?? '/images/hot-desk-room.jpg'
     },
     {
       id: 'RM-OFF-301',
       title: 'Executive Eco Suite Alpha',
       category: 'Private Office Hub',
       desc: 'ห้องทำงานส่วนตัวสำหรับทีม 4-6 ท่าน ความปลอดภัยด้วยการสแกนใบหน้าและระบบกรองอากาศ Hepa Filter ระดับการแพทย์',
-      price: 600,
+      price: customData['RM-OFF-301']?.price ?? customData['slide-executive']?.price ?? 600,
       capacity: '4-6 ท่าน',
       badge: 'ส่วนลด 25% เมื่อจอง 24 ชม.+',
-      image: '/images/executive-suite.jpg'
+      image: customData['RM-OFF-301']?.image ?? customData['slide-executive']?.image ?? '/images/executive-suite.jpg'
     },
     {
       id: 'RM-PHN-401',
       title: 'Acoustic Sound Pod #1',
       category: 'Private Booth',
       desc: 'ตู้เก็บเสียงกระจกนิรภัย 2 ชั้น เหมาะสำหรับการคุยโทรศัพท์งานสำคัญหรือสัมภาษณ์ออนไลน์อย่างเป็นส่วนตัว',
-      price: 50,
+      price: customData['RM-PHN-401']?.price ?? customData['slide-soundproof']?.price ?? 50,
       capacity: '1 ท่าน',
       badge: 'คิดราคาตามช่วงเวลาจริง',
-      image: '/images/soundproof-booth.jpg'
+      image: customData['RM-PHN-401']?.image ?? customData['slide-soundproof']?.image ?? '/images/soundproof-booth.jpg'
     }
   ];
 
@@ -211,8 +292,148 @@ export default function LandingPage() {
                 </Link>
               </div>
 
+              {/* Room Selection Dropdown */}
+              <div className="pt-2" ref={dropdownRef}>
+                <p className="text-xs text-[#E6F4EA]/60 mb-2 font-semibold uppercase tracking-wider">เลือกห้องประชุมที่ต้องการจอง</p>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setRoomDropdownOpen(prev => !prev)}
+                    className="w-full sm:w-auto flex items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-[#061812] border border-[#00FF87]/30 hover:border-[#00FF87]/70 text-white text-sm font-bold transition-all shadow-lg min-w-[240px]"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-[#00FF87]" />
+                      เลือกห้องประชุม
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-[#00FF87] transition-transform duration-200 ${roomDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {roomDropdownOpen && (
+                    <div className="absolute top-full mt-2 left-0 z-50 w-full sm:w-[360px] max-h-[420px] overflow-y-auto rounded-2xl border border-[#00FF87]/30 bg-[#061812] shadow-[0_8px_32px_rgba(0,0,0,0.7)] p-2 space-y-1">
+                      {/* Section 1: Official Hubs */}
+                      <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#00FF87]/70">
+                        พื้นที่หลัก / ศูนย์การศึกษา
+                      </div>
+
+                      {/* KMITL Room */}
+                      <button
+                        type="button"
+                        onClick={() => { setRoomDropdownOpen(false); router.push('/kmitl-room'); }}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-amber-500/10 hover:border-amber-400/30 border border-transparent transition-all text-left group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-base flex-shrink-0">
+                          🏛️
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors truncate">KMITL Room</div>
+                          <div className="text-[10px] text-[#E6F4EA]/60 truncate">สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง</div>
+                          <div className="text-[10px] text-amber-400 font-semibold mt-0.5">฿750/ชม. · 16 ท่าน</div>
+                        </div>
+                      </button>
+
+                      {/* Mii Space */}
+                      <button
+                        type="button"
+                        onClick={() => { setRoomDropdownOpen(false); router.push('/mii-space'); }}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-teal-500/10 hover:border-teal-400/30 border border-transparent transition-all text-left group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-base flex-shrink-0">
+                          🏨
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-white group-hover:text-teal-300 transition-colors truncate">Mii Space Hotel</div>
+                          <div className="text-[10px] text-[#E6F4EA]/60 truncate">ห้องประชุมโรงแรม บางนา-ศรีนครินทร์</div>
+                          <div className="text-[10px] text-teal-400 font-semibold mt-0.5">฿550/ชม. · 10 ท่าน</div>
+                        </div>
+                      </button>
+
+                      {/* Victor Club */}
+                      <button
+                        type="button"
+                        onClick={() => { setRoomDropdownOpen(false); router.push('/dashboard?roomId=RM-MTG-VICTOR-FYI'); }}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-emerald-500/10 hover:border-emerald-400/30 border border-transparent transition-all text-left group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-base flex-shrink-0">
+                          🏢
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors truncate">Victor Club</div>
+                          <div className="text-[10px] text-[#E6F4EA]/60 truncate">FYI Center Meeting Room</div>
+                          <div className="text-[10px] text-emerald-400 font-semibold mt-0.5">฿200/ชม. · 12 ท่าน</div>
+                        </div>
+                      </button>
+
+                      {workspaceList.filter(ws => ws.workspaceId !== 'WS-ASOKE' && ws.workspaceId !== 'WS-KMITL' && ws.workspaceId !== 'WS-MII').length > 0 && (
+                        workspaceList
+                          .filter(ws => ws.workspaceId !== 'WS-ASOKE' && ws.workspaceId !== 'WS-KMITL' && ws.workspaceId !== 'WS-MII')
+                          .map(ws => {
+                            const wsRooms = roomList.filter(r => r.workspaceId === ws.workspaceId);
+                            if (wsRooms.length === 0) {
+                              return (
+                                <button
+                                  key={ws.workspaceId}
+                                  type="button"
+                                  onClick={() => { setRoomDropdownOpen(false); router.push(`/rooms`); }}
+                                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-teal-500/10 hover:border-teal-400/30 border border-transparent transition-all text-left group"
+                                >
+                                  <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-base flex-shrink-0">
+                                    🏢
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold text-white group-hover:text-teal-300 transition-colors truncate">{ws.name}</div>
+                                    <div className="text-[10px] text-[#E6F4EA]/60 truncate">{ws.location}</div>
+                                  </div>
+                                </button>
+                              );
+                            }
+
+                            return wsRooms.map(rm => (
+                              <button
+                                key={rm.roomId}
+                                type="button"
+                                onClick={() => {
+                                  setRoomDropdownOpen(false);
+                                  router.push(`/dashboard?roomId=${rm.roomId}`);
+                                }}
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-teal-500/10 hover:border-teal-400/30 border border-transparent transition-all text-left group"
+                              >
+                                <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-base flex-shrink-0">
+                                  🏢
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-bold text-white group-hover:text-teal-300 transition-colors truncate">
+                                    {rm.name}
+                                  </div>
+                                  <div className="text-[10px] text-[#E6F4EA]/60 truncate">
+                                    {ws.name} • {ws.location}
+                                  </div>
+                                  <div className="text-[10px] text-teal-400 font-semibold mt-0.5">
+                                    ฿{rm.pricePerHour}/ชม. · รองรับ {rm.capacity} ท่าน
+                                  </div>
+                                </div>
+                              </button>
+                            ));
+                          })
+                      )}
+
+                      {/* View All Rooms Footer */}
+                      <div className="pt-2 mt-1 border-t border-[#00FF87]/20">
+                        <button
+                          type="button"
+                          onClick={() => { setRoomDropdownOpen(false); router.push('/rooms'); }}
+                          className="w-full py-2 px-3 text-center text-xs font-extrabold text-[#00FF87] hover:bg-[#00FF87]/15 rounded-xl transition flex items-center justify-center gap-1.5"
+                        >
+                          <span>ดูห้องประชุมทั้งหมด</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Sub-feature line */}
-              <div className="pt-6 border-t border-[#00FF87]/15 flex items-center gap-3 text-xs text-[#E6F4EA]/60">
+              <div className="pt-4 border-t border-[#00FF87]/15 flex items-center gap-3 text-xs text-[#E6F4EA]/60">
                 <div className="w-2.5 h-2.5 rounded-full bg-[#00FF87]"></div>
                 <span>Pioneering green tech for eco-conscious living and smart coworking</span>
               </div>
@@ -490,9 +711,9 @@ export default function LandingPage() {
                 <h3 className="text-xl font-bold text-white">Basic Eco</h3>
                 <p className="text-xs text-[#E6F4EA]/60 mt-1">สำหรับบุคคลทั่วไปและผู้ใช้งานเริ่มต้น</p>
                 <div className="my-6">
-                  <span className="text-4xl font-black text-white">฿0</span>
-                  <span className="text-xs text-[#E6F4EA]/60"> /สมัครฟรี</span>
-                  <div className="text-xs font-bold text-[#00FF87] mt-1">โควตาจอง 20 ชม./เดือน</div>
+                  <span className="text-4xl font-black text-white">฿{membershipCustom.BASIC?.price?.toLocaleString() ?? '0'}</span>
+                  <span className="text-xs text-[#E6F4EA]/60"> {membershipCustom.BASIC?.price === 0 ? '/สมัครฟรี' : '/เดือน'}</span>
+                  <div className="text-xs font-bold text-[#00FF87] mt-1">{membershipCustom.BASIC?.quotaText || 'โควตาจอง 20 ชม./เดือน'}</div>
                 </div>
                 <ul className="space-y-3 text-xs text-[#E6F4EA]/80 pt-4 border-t border-[#00FF87]/15">
                   <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#00FF87]" /> จองพื้นที่ล่วงหน้า 7 วัน</li>
@@ -514,9 +735,9 @@ export default function LandingPage() {
                 <h3 className="text-xl font-black text-white">Pro Tech</h3>
                 <p className="text-xs text-[#E6F4EA]/60 mt-1">สำหรับฟรีแลนซ์และมือโปร</p>
                 <div className="my-6">
-                  <span className="text-4xl font-black text-white">฿1,500</span>
+                  <span className="text-4xl font-black text-white">฿{membershipCustom.PRO?.price?.toLocaleString() ?? '100'}</span>
                   <span className="text-xs text-[#E6F4EA]/60"> /เดือน</span>
-                  <div className="text-xs font-bold text-[#00FF87] mt-1">ส่วนลด 15% ทุกห้อง • โควตา 80 ชม.</div>
+                  <div className="text-xs font-bold text-[#00FF87] mt-1">{membershipCustom.PRO?.quotaText || 'ส่วนลด 15% ทุกห้อง • โควตา 80 ชม.'}</div>
                 </div>
                 <ul className="space-y-3 text-xs text-[#E6F4EA]/90 pt-4 border-t border-[#00FF87]/20">
                   <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#00FF87]" /> ส่วนลด 15% ห้องประชุม & Hot Desk</li>
@@ -536,9 +757,9 @@ export default function LandingPage() {
                 <h3 className="text-xl font-bold text-white">Enterprise</h3>
                 <p className="text-xs text-[#E6F4EA]/60 mt-1">สำหรับทีมงาน องค์กร และสตาร์ตอัป</p>
                 <div className="my-6">
-                  <span className="text-4xl font-black text-white">฿4,500</span>
+                  <span className="text-4xl font-black text-white">฿{membershipCustom.ENTERPRISE?.price?.toLocaleString() ?? '150'}</span>
                   <span className="text-xs text-[#E6F4EA]/60"> /เดือน</span>
-                  <div className="text-xs font-bold text-[#00FF87] mt-1">ส่วนลด 30% ทุกห้อง • โควตา Unlimited</div>
+                  <div className="text-xs font-bold text-[#00FF87] mt-1">{membershipCustom.ENTERPRISE?.quotaText || 'ส่วนลด 30% ทุกห้อง • โควตา Unlimited'}</div>
                 </div>
                 <ul className="space-y-3 text-xs text-[#E6F4EA]/80 pt-4 border-t border-[#00FF87]/15">
                   <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#00FF87]" /> ส่วนลดสูงสุด 30% ทุกห้องและ Suite</li>

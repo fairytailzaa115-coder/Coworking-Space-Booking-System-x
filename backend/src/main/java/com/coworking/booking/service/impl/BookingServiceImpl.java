@@ -21,6 +21,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -38,6 +39,11 @@ public class BookingServiceImpl implements IBookingService {
     @Override
     public List<Workspace> getAllWorkspaces() {
         return workspaceRepository.findAll();
+    }
+
+    @Override
+    public List<Room> getAllRooms() {
+        return roomRepository.findAll();
     }
 
     @Override
@@ -262,8 +268,85 @@ public class BookingServiceImpl implements IBookingService {
                     return membershipRepository.save(newMb);
                 });
 
-        // 3. Create OOP RegisteredMember Entity
         String memberId = "MEM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        boolean isDealer = "DEALER".equalsIgnoreCase(request.getMemberType());
+
+        if (isDealer) {
+            // DEALER REGISTRATION: Create Dealer Workspace + Primary Room + DealerMember Entity
+            String randomCode = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+            String dealerSpaceName = (request.getSpaceName() != null && !request.getSpaceName().isBlank())
+                    ? request.getSpaceName().trim()
+                    : request.getName() + " Space";
+            String dealerLocation = (request.getSpaceLocation() != null && !request.getSpaceLocation().isBlank())
+                    ? request.getSpaceLocation().trim()
+                    : "กรุงเทพมหานคร";
+
+            String workspaceId = "WS-DLR-" + randomCode;
+            Workspace ws = new Workspace();
+            ws.setWorkspaceId(workspaceId);
+            ws.setName(dealerSpaceName);
+            ws.setType("DEALER_SPACE");
+            ws.setLocation(dealerLocation);
+            ws.setDescription(request.getSpaceDescription() != null && !request.getSpaceDescription().isBlank()
+                    ? request.getSpaceDescription().trim()
+                    : "ห้องประชุมระดับพรีเมียม ปล่อยเช่าโดย " + request.getName());
+            ws.setOpeningHours("08:00 - 22:00");
+            workspaceRepository.save(ws);
+
+            String roomId = "RM-DLR-" + randomCode;
+            BigDecimal price = request.getRoomPricePerHour() != null
+                    ? request.getRoomPricePerHour()
+                    : new BigDecimal("550.00");
+            Integer capacity = request.getRoomCapacity() != null
+                    ? request.getRoomCapacity()
+                    : 10;
+            String img = request.getRoomImageUrl() != null && !request.getRoomImageUrl().isBlank()
+                    ? request.getRoomImageUrl().trim()
+                    : "/images/meeting-room.jpg";
+
+            MeetingRoom room = new MeetingRoom(roomId, workspaceId, dealerSpaceName + " Meeting Room", capacity, price, BigDecimal.ZERO);
+            room.setImageUrl(img);
+            room.setStatus("AVAILABLE");
+            roomRepository.save(room);
+
+            DealerMember dealer = new DealerMember(
+                    memberId,
+                    request.getName(),
+                    normalizedEmail,
+                    request.getPhone(),
+                    membership,
+                    dealerSpaceName,
+                    dealerLocation,
+                    workspaceId,
+                    roomId
+            );
+            dealer.setPasswordHash(hashPassword(request.getPassword()));
+            if (request.getVisaCardNumber() != null) dealer.setVisaCardNumber(request.getVisaCardNumber().trim());
+            if (request.getVisaCardHolder() != null) dealer.setVisaCardHolder(request.getVisaCardHolder().trim());
+            if (request.getVisaCardExpiry() != null) dealer.setVisaCardExpiry(request.getVisaCardExpiry().trim());
+
+            DealerMember saved = memberRepository.save(dealer);
+
+            return MemberResponseDTO.builder()
+                    .memberId(saved.getMemberId())
+                    .name(saved.getName())
+                    .email(saved.getEmail())
+                    .phone(saved.getPhone())
+                    .memberType("DEALER")
+                    .membershipTier(saved.getMembership().getTier())
+                    .discountRate(saved.getMembership().getDiscountRate())
+                    .maxMonthlyHours(saved.getMembership().getMaxMonthlyHours())
+                    .rewardPoints(0)
+                    .admin(false)
+                    .registeredAt(saved.getRegisteredAt())
+                    .spaceName(saved.getSpaceName())
+                    .spaceLocation(saved.getSpaceLocation())
+                    .dealerWorkspaceId(saved.getWorkspaceId())
+                    .dealerRoomId(saved.getRoomId())
+                    .build();
+        }
+
+        // 3. Regular REGISTERED Member Entity
         RegisteredMember member = new RegisteredMember(
                 memberId,
                 request.getName(),
@@ -273,7 +356,6 @@ public class BookingServiceImpl implements IBookingService {
                 50 // Bonus welcome points
         );
 
-        // 4. Store password hash into PostgreSQL members table for login verification
         member.setPasswordHash(hashPassword(request.getPassword()));
 
         if (request.getVisaCardNumber() != null && !request.getVisaCardNumber().isBlank()) {
@@ -286,7 +368,6 @@ public class BookingServiceImpl implements IBookingService {
             member.setVisaCardExpiry(request.getVisaCardExpiry().trim());
         }
 
-        // 5. Save to PostgreSQL Database
         RegisteredMember saved = memberRepository.save(member);
 
         return MemberResponseDTO.builder()
@@ -319,11 +400,27 @@ public class BookingServiceImpl implements IBookingService {
             throw new IllegalArgumentException("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
         }
 
+        String memberType = "GUEST";
+        String spaceName = null;
+        String spaceLocation = null;
+        String dealerWorkspaceId = null;
+        String dealerRoomId = null;
+
+        if (member instanceof DealerMember dl) {
+            memberType = "DEALER";
+            spaceName = dl.getSpaceName();
+            spaceLocation = dl.getSpaceLocation();
+            dealerWorkspaceId = dl.getWorkspaceId();
+            dealerRoomId = dl.getRoomId();
+        } else if (member instanceof RegisteredMember) {
+            memberType = "REGISTERED";
+        }
+
         return LoginResponseDTO.builder()
                 .memberId(member.getMemberId())
                 .name(member.getName())
                 .email(member.getEmail())
-                .memberType(member instanceof RegisteredMember ? "REGISTERED" : "GUEST")
+                .memberType(memberType)
                 .membershipTier(member.getMembership().getTier())
                 .discountRate(member.getMembership().getDiscountRate())
                 .maxMonthlyHours(member.getMembership().getMaxMonthlyHours())
@@ -332,6 +429,10 @@ public class BookingServiceImpl implements IBookingService {
                 .visaCardNumber(member.getVisaCardNumber())
                 .visaCardHolder(member.getVisaCardHolder())
                 .visaCardExpiry(member.getVisaCardExpiry())
+                .spaceName(spaceName)
+                .spaceLocation(spaceLocation)
+                .dealerWorkspaceId(dealerWorkspaceId)
+                .dealerRoomId(dealerRoomId)
                 .build();
     }
 
@@ -342,13 +443,18 @@ public class BookingServiceImpl implements IBookingService {
                 .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
 
         Integer points = (member instanceof RegisteredMember reg) ? reg.getRewardPoints() : 0;
+        String memberType = (member instanceof DealerMember) ? "DEALER" : (member instanceof RegisteredMember) ? "REGISTERED" : "GUEST";
+        String spaceName = (member instanceof DealerMember dl) ? dl.getSpaceName() : null;
+        String spaceLocation = (member instanceof DealerMember dl) ? dl.getSpaceLocation() : null;
+        String dealerWsId = (member instanceof DealerMember dl) ? dl.getWorkspaceId() : null;
+        String dealerRmId = (member instanceof DealerMember dl) ? dl.getRoomId() : null;
 
         return MemberResponseDTO.builder()
                 .memberId(member.getMemberId())
                 .name(member.getName())
                 .email(member.getEmail())
                 .phone(member.getPhone())
-                .memberType((member instanceof RegisteredMember) ? "REGISTERED" : "GUEST")
+                .memberType(memberType)
                 .membershipTier(member.getMembership().getTier())
                 .discountRate(member.getMembership().getDiscountRate())
                 .maxMonthlyHours(member.getMembership().getMaxMonthlyHours())
@@ -358,6 +464,10 @@ public class BookingServiceImpl implements IBookingService {
                 .visaCardNumber(member.getVisaCardNumber())
                 .visaCardHolder(member.getVisaCardHolder())
                 .visaCardExpiry(member.getVisaCardExpiry())
+                .spaceName(spaceName)
+                .spaceLocation(spaceLocation)
+                .dealerWorkspaceId(dealerWsId)
+                .dealerRoomId(dealerRmId)
                 .build();
     }
 
@@ -416,5 +526,342 @@ public class BookingServiceImpl implements IBookingService {
                 .visaCardHolder(saved.getVisaCardHolder())
                 .visaCardExpiry(saved.getVisaCardExpiry())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public Room createMeetingRoom(java.util.Map<String, Object> payload) {
+        String adminMemberId = (String) payload.get("adminMemberId");
+        if (adminMemberId != null && !adminMemberId.isBlank()) {
+            requireAdmin(adminMemberId);
+        }
+
+        String rawName = (String) payload.get("name");
+        if (rawName == null || rawName.isBlank()) {
+            throw new IllegalArgumentException("Room name cannot be empty");
+        }
+        String name = rawName.trim();
+
+        String rawId = (String) payload.get("roomId");
+        String roomId = (rawId != null && !rawId.isBlank())
+                ? rawId.trim().toUpperCase()
+                : "RM-MTG-" + (System.currentTimeMillis() % 100000);
+
+        String rawWorkspaceId = (String) payload.get("workspaceId");
+        String workspaceId = (rawWorkspaceId != null && !rawWorkspaceId.isBlank())
+                ? rawWorkspaceId.trim()
+                : "WS-ASOKE";
+
+        Integer capacity = payload.get("capacity") != null
+                ? Integer.valueOf(payload.get("capacity").toString())
+                : 6;
+
+        BigDecimal pricePerHour = payload.get("pricePerHour") != null
+                ? new BigDecimal(payload.get("pricePerHour").toString())
+                : new BigDecimal("350.00");
+
+        BigDecimal equipmentFee = payload.get("equipmentFee") != null
+                ? new BigDecimal(payload.get("equipmentFee").toString())
+                : new BigDecimal("100.00");
+
+        String imageUrl = (String) payload.getOrDefault("imageUrl", "/images/meeting-room.jpg");
+        Boolean hasVideo = payload.get("hasVideoConference") != null
+                ? Boolean.valueOf(payload.get("hasVideoConference").toString())
+                : true;
+        Boolean hasWhiteboard = payload.get("hasWhiteboard") != null
+                ? Boolean.valueOf(payload.get("hasWhiteboard").toString())
+                : true;
+
+        MeetingRoom mr = new MeetingRoom(roomId, workspaceId, name, capacity, pricePerHour, equipmentFee);
+        mr.setHasVideoConference(hasVideo);
+        mr.setHasWhiteboard(hasWhiteboard);
+        mr.setImageUrl(imageUrl);
+        mr.setStatus("AVAILABLE");
+
+        return roomRepository.save(mr);
+    }
+
+    @Override
+    @Transactional
+    public Room updateRoom(String roomId, java.util.Map<String, Object> payload) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found: " + roomId));
+
+        // Authorization check: Only Admin or the owning Dealer can modify room details
+        String callerMemberId = (String) payload.get("callerMemberId");
+        if (callerMemberId == null || callerMemberId.isBlank()) {
+            throw new IllegalArgumentException("เฉพาะผู้ดูแลระบบหรือ Dealer เจ้าของพื้นที่เท่านั้นที่สามารถแก้ไขข้อมูลห้องประชุมได้ (ผู้ใช้ทั่วไปมีสิทธิ์จองห้องเท่านั้น)");
+        }
+        Member caller = memberRepository.findById(callerMemberId)
+                .orElseThrow(() -> new IllegalArgumentException("Caller member not found: " + callerMemberId));
+        if (!caller.isAdmin()) {
+            if (caller instanceof DealerMember dealer) {
+                boolean ownsRoom = roomId.equalsIgnoreCase(dealer.getRoomId())
+                        || (dealer.getWorkspaceId() != null && dealer.getWorkspaceId().equalsIgnoreCase(room.getWorkspaceId()));
+                if (!ownsRoom) {
+                    throw new IllegalArgumentException("คุณสามารถแก้ไขได้เฉพาะห้องประชุมในพื้นที่ของคุณเท่านั้น (ไม่มีสิทธิ์แก้ไขห้องของผู้อื่น)");
+                }
+            } else {
+                throw new IllegalArgumentException("เฉพาะผู้ดูแลระบบหรือ Dealer เจ้าของพื้นที่เท่านั้นที่สามารถแก้ไขข้อมูลห้องประชุมได้ (ผู้ใช้ทั่วไปมีสิทธิ์จองห้องเท่านั้น)");
+            }
+        }
+
+        if (payload.containsKey("pricePerHour")) {
+            room.setPricePerHour(new BigDecimal(payload.get("pricePerHour").toString()));
+        } else if (payload.containsKey("price")) {
+            room.setPricePerHour(new BigDecimal(payload.get("price").toString()));
+        }
+
+        if (payload.containsKey("imageUrl")) {
+            room.setImageUrl(payload.get("imageUrl") != null ? payload.get("imageUrl").toString() : null);
+        } else if (payload.containsKey("image")) {
+            room.setImageUrl(payload.get("image") != null ? payload.get("image").toString() : null);
+        }
+
+        if (payload.containsKey("name")) {
+            room.setName(payload.get("name").toString());
+        }
+
+        if (payload.containsKey("capacity")) {
+            room.setCapacity(Integer.parseInt(payload.get("capacity").toString()));
+        }
+
+        if (payload.containsKey("status")) {
+            room.setStatus(payload.get("status").toString());
+        }
+
+        return roomRepository.save(room);
+    }
+
+    @Override
+    public List<Membership> getAllMemberships() {
+        return membershipRepository.findAll();
+    }
+
+    @Override
+    @Transactional
+    public Membership updateMembership(String tier, java.util.Map<String, Object> payload) {
+        String cleanTier = tier.trim().toUpperCase();
+        Membership membership = membershipRepository.findByTier(cleanTier)
+                .orElseGet(() -> {
+                    Membership m = new Membership("MB-" + cleanTier, cleanTier, BigDecimal.ZERO);
+                    return membershipRepository.save(m);
+                });
+
+        if (payload.containsKey("priceMonthly")) {
+            membership.setPriceMonthly(new BigDecimal(payload.get("priceMonthly").toString()));
+        } else if (payload.containsKey("price")) {
+            membership.setPriceMonthly(new BigDecimal(payload.get("price").toString()));
+        }
+
+        if (payload.containsKey("discountRate")) {
+            membership.setDiscountRate(new BigDecimal(payload.get("discountRate").toString()));
+        }
+
+        if (payload.containsKey("maxMonthlyHours")) {
+            membership.setMaxMonthlyHours(Integer.parseInt(payload.get("maxMonthlyHours").toString()));
+        }
+
+        return membershipRepository.save(membership);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getDealerSpace(String memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+
+        if (!(member instanceof DealerMember dealer)) {
+            throw new IllegalArgumentException("Member is not a dealer: " + memberId);
+        }
+
+        Workspace ws = null;
+        if (dealer.getWorkspaceId() != null) {
+            ws = workspaceRepository.findById(dealer.getWorkspaceId()).orElse(null);
+        }
+
+        List<Room> rooms = dealer.getWorkspaceId() != null
+                ? roomRepository.findByWorkspaceId(dealer.getWorkspaceId())
+                : List.of();
+
+        Room primaryRoom = null;
+        if (dealer.getRoomId() != null) {
+            primaryRoom = roomRepository.findById(dealer.getRoomId()).orElse(null);
+        }
+        if (primaryRoom == null && !rooms.isEmpty()) {
+            primaryRoom = rooms.get(0);
+        }
+
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("memberId", dealer.getMemberId());
+        result.put("dealerName", dealer.getName());
+        result.put("email", dealer.getEmail());
+        result.put("phone", dealer.getPhone() != null ? dealer.getPhone() : "");
+        result.put("spaceName", dealer.getSpaceName() != null ? dealer.getSpaceName() : "");
+        result.put("spaceLocation", dealer.getSpaceLocation() != null ? dealer.getSpaceLocation() : "");
+        result.put("workspaceId", dealer.getWorkspaceId());
+        result.put("roomId", dealer.getRoomId());
+        result.put("workspace", ws);
+        result.put("rooms", rooms);
+        result.put("primaryRoom", primaryRoom);
+
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> updateDealerSpace(String memberId, Map<String, Object> payload) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+
+        if (!(member instanceof DealerMember dealer)) {
+            throw new IllegalArgumentException("Member is not a dealer: " + memberId);
+        }
+
+        if (payload.containsKey("spaceName") && payload.get("spaceName") != null) {
+            String newSpaceName = payload.get("spaceName").toString().trim();
+            dealer.setSpaceName(newSpaceName);
+            if (dealer.getWorkspaceId() != null) {
+                workspaceRepository.findById(dealer.getWorkspaceId()).ifPresent(ws -> {
+                    ws.setName(newSpaceName);
+                    workspaceRepository.save(ws);
+                });
+            }
+        }
+
+        if (payload.containsKey("spaceLocation") && payload.get("spaceLocation") != null) {
+            String newLoc = payload.get("spaceLocation").toString().trim();
+            dealer.setSpaceLocation(newLoc);
+            if (dealer.getWorkspaceId() != null) {
+                workspaceRepository.findById(dealer.getWorkspaceId()).ifPresent(ws -> {
+                    ws.setLocation(newLoc);
+                    workspaceRepository.save(ws);
+                });
+            }
+        }
+
+        if (payload.containsKey("phone") && payload.get("phone") != null) {
+            dealer.setPhone(payload.get("phone").toString().trim());
+        }
+
+        memberRepository.save(dealer);
+
+        if (dealer.getRoomId() != null) {
+            roomRepository.findById(dealer.getRoomId()).ifPresent(room -> {
+                boolean modified = false;
+                if (payload.containsKey("roomName") && payload.get("roomName") != null) {
+                    room.setName(payload.get("roomName").toString().trim());
+                    modified = true;
+                }
+                if (payload.containsKey("pricePerHour") && payload.get("pricePerHour") != null) {
+                    room.setPricePerHour(new BigDecimal(payload.get("pricePerHour").toString()));
+                    modified = true;
+                }
+                if (payload.containsKey("capacity") && payload.get("capacity") != null) {
+                    room.setCapacity(Integer.parseInt(payload.get("capacity").toString()));
+                    modified = true;
+                }
+                if (payload.containsKey("imageUrl") && payload.get("imageUrl") != null) {
+                    room.setImageUrl(payload.get("imageUrl").toString().trim());
+                    modified = true;
+                }
+                if (payload.containsKey("status") && payload.get("status") != null) {
+                    room.setStatus(payload.get("status").toString().trim());
+                    modified = true;
+                }
+                if (modified) {
+                    roomRepository.save(room);
+                }
+            });
+        }
+
+        return getDealerSpace(memberId);
+    }
+
+    @Override
+    @Transactional
+    public Room addDealerRoom(String memberId, Map<String, Object> payload) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+
+        if (!(member instanceof DealerMember dealer)) {
+            throw new IllegalArgumentException("Member is not a dealer: " + memberId);
+        }
+
+        String workspaceId = dealer.getWorkspaceId();
+        if (workspaceId == null || workspaceId.isBlank()) {
+            throw new IllegalArgumentException("Dealer does not have a registered workspace");
+        }
+
+        String randomCode = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        String roomId = "RM-DLR-" + randomCode;
+
+        String name = payload.get("name") != null && !payload.get("name").toString().isBlank()
+                ? payload.get("name").toString().trim()
+                : (dealer.getSpaceName() != null ? dealer.getSpaceName() : "Dealer") + " Meeting Room " + randomCode;
+
+        Integer capacity = payload.get("capacity") != null
+                ? Integer.valueOf(payload.get("capacity").toString())
+                : 6;
+
+        BigDecimal pricePerHour = payload.get("pricePerHour") != null
+                ? new BigDecimal(payload.get("pricePerHour").toString())
+                : new BigDecimal("350.00");
+
+        BigDecimal equipmentFee = payload.get("equipmentFee") != null
+                ? new BigDecimal(payload.get("equipmentFee").toString())
+                : BigDecimal.ZERO;
+
+        String imageUrl = payload.get("imageUrl") != null && !payload.get("imageUrl").toString().isBlank()
+                ? payload.get("imageUrl").toString().trim()
+                : "/images/meeting-room.jpg";
+
+        MeetingRoom mr = new MeetingRoom(roomId, workspaceId, name, capacity, pricePerHour, equipmentFee);
+        mr.setImageUrl(imageUrl);
+        mr.setStatus(payload.get("status") != null ? payload.get("status").toString().trim() : "AVAILABLE");
+        mr.setHasVideoConference(true);
+        mr.setHasWhiteboard(true);
+
+        Room saved = roomRepository.save(mr);
+
+        if (dealer.getRoomId() == null || dealer.getRoomId().isBlank()) {
+            dealer.setRoomId(saved.getRoomId());
+            memberRepository.save(dealer);
+        }
+
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public void deleteDealerRoom(String memberId, String roomId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+
+        if (!(member instanceof DealerMember dealer)) {
+            throw new IllegalArgumentException("Member is not a dealer: " + memberId);
+        }
+
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found: " + roomId));
+
+        if (dealer.getWorkspaceId() == null || !dealer.getWorkspaceId().equalsIgnoreCase(room.getWorkspaceId())) {
+            throw new IllegalArgumentException("คุณสามารถลบได้เฉพาะห้องประชุมในพื้นที่ของคุณเท่านั้น");
+        }
+
+        if (roomId.equalsIgnoreCase(dealer.getRoomId())) {
+            List<Room> remaining = roomRepository.findByWorkspaceId(dealer.getWorkspaceId());
+            String newPrimaryId = null;
+            for (Room r : remaining) {
+                if (!r.getRoomId().equalsIgnoreCase(roomId)) {
+                    newPrimaryId = r.getRoomId();
+                    break;
+                }
+            }
+            dealer.setRoomId(newPrimaryId);
+            memberRepository.save(dealer);
+        }
+
+        roomRepository.delete(room);
     }
 }

@@ -166,12 +166,44 @@ const MEETING_ROOMS_CATALOG: Room[] = [
     recommendedFor: 'งานสัมมนาใหญ่ ประชุมประจำปี All-Hands Town Hall',
     pricingRuleDescription: '฿1,800/ชม. + เจ้าหน้าที่เทคนิคและชุดถ่ายทอดสด ฿500',
     features: ['เวทีบรรยาย + จอ LED Wall ขนาดใหญ่', 'ระบบเสียงรอบทิศทาง Dolby', 'สตรีมมิ่งสด 4K Multi-cam', 'พื้นที่รับรองและแคเทอริ่ง']
+  },
+  {
+    roomId: 'RM-MTG-KMITL',
+    name: 'KMITL Room สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง',
+    capacity: 16,
+    pricePerHour: 750,
+    status: 'AVAILABLE',
+    roomType: 'MEETING_ROOM',
+    equipmentFee: 200,
+    hasVideoConference: true,
+    hasWhiteboard: true,
+    image: '/images/executive-strategy-room.jpg',
+    tag: 'KMITL ROOM',
+    recommendedFor: 'งานประชุมสัมมนา งานแถลงข่าว หรือประชุมทางวิชาการและภาคธุรกิจ',
+    pricingRuleDescription: '฿750/ชม. + ระบบถ่ายทอดสด & Smart Board สจล. ฿200',
+    features: ['Smart Interactive Board 85"', 'ระบบถ่ายทอดสด Hybrid Conference', 'ไมค์ตั้งโต๊ะรายบุคคล', 'Free WiFi ความเร็วสูง']
+  },
+  {
+    roomId: 'RM-MTG-MII',
+    name: 'Mii Space ห้องประชุมโรงแรม บางนา-ศรีนครินทร์',
+    capacity: 10,
+    pricePerHour: 550,
+    status: 'AVAILABLE',
+    roomType: 'MEETING_ROOM',
+    equipmentFee: 150,
+    hasVideoConference: true,
+    hasWhiteboard: true,
+    image: '/images/summit-boardroom.jpg',
+    tag: 'MII SPACE HOTEL',
+    recommendedFor: 'ประชุมผู้บริหาร ประชุมบริษัท หรือนัดคุยกับลูกค้าในบรรยากาศโรงแรมหรู',
+    pricingRuleDescription: '฿550/ชม. + จอโปรเจกเตอร์ 4K & สิ่งอำนวยความสะดวกครบครัน ฿150',
+    features: ['จอแสดงผล 4K HDR 65"', 'ระบบเสียงคุณภาพสูง', 'บริการเครื่องดื่มและของว่างระดับโรงแรม', 'ที่จอดรถสะดวกสบาย']
   }
 ];
 
 export default function MeetingRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>(MEETING_ROOMS_CATALOG);
-  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'medium' | 'large'>('all');
+  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'medium' | 'large' | 'dealer' | 'kmitl' | 'mii'>('all');
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -202,29 +234,57 @@ export default function MeetingRoomsPage() {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const res = await fetch('http://localhost:8080/api/v1/workspaces/WS-ASOKE/rooms');
-        if (!res.ok) throw new Error('API fetch failed');
-        const data: Room[] = await res.json();
-        
-        const meetingRooms = data.filter(r => 
-          r.roomId.startsWith('RM-MTG') || (r as any).roomType === 'MEETING_ROOM'
+        const [roomRes, wsRes] = await Promise.all([
+          fetch('/api/v1/rooms').then(r => r.ok ? r.json() : []).catch(() => []),
+          fetch('/api/v1/workspaces').then(r => r.ok ? r.json() : []).catch(() => [])
+        ]);
+
+        const wsMap = new Map((wsRes as any[]).map(w => [w.workspaceId, w]));
+
+        const allRooms: Room[] = Array.isArray(roomRes) ? roomRes : [];
+        const meetingRooms = allRooms.filter(r => 
+          r.roomId.startsWith('RM-MTG') || r.roomId.startsWith('RM-DLR') || (r as any).roomType === 'MEETING_ROOM'
         );
+
+        let customMap: Record<string, { price: number; image: string }> = {};
+        try {
+          const customRaw = localStorage.getItem('adminPageCustomization');
+          if (customRaw) {
+            const customList = JSON.parse(customRaw) as Array<{ id: string; price: number; proPrice: number; image: string }>;
+            customList.forEach(r => { customMap[r.id] = { price: r.price, image: r.image }; });
+          }
+        } catch (e) {}
 
         if (meetingRooms.length > 0) {
           const merged = meetingRooms.map(backendRoom => {
             const preset = MEETING_ROOMS_CATALOG.find(p => p.roomId === backendRoom.roomId);
+            const ws = wsMap.get((backendRoom as any).workspaceId);
+            const isDealer = (backendRoom as any).workspaceId?.startsWith('WS-DLR') || ws?.type === 'DEALER_SPACE' || backendRoom.roomId.startsWith('RM-DLR');
+
+            const overridePrice = customMap[backendRoom.roomId]?.price;
+            const overrideImage = customMap[backendRoom.roomId]?.image;
+
             return {
               ...backendRoom,
-              image: preset?.image || '/images/meeting-room.jpg',
-              tag: preset?.tag || 'MEETING ROOM',
-              recommendedFor: preset?.recommendedFor || `เหมาะสำหรับทีม ${backendRoom.capacity} ท่าน`,
-              features: preset?.features || ['จอ 4K Ultra HD', 'Video Conference', 'Fiber WiFi', 'ไวท์บอร์ด'],
-              pricingRuleDescription: backendRoom.pricingRuleDescription || preset?.pricingRuleDescription || `฿${backendRoom.pricePerHour}/ชม.`
+              pricePerHour: overridePrice ?? backendRoom.pricePerHour,
+              image: overrideImage || (backendRoom as any).imageUrl || preset?.image || '/images/meeting-room.jpg',
+              tag: isDealer ? `DEALER · ${ws?.name || 'PARTNER'}` : (preset?.tag || 'MEETING ROOM'),
+              recommendedFor: isDealer 
+                ? `${ws?.name || 'พื้นที่พาร์ทเนอร์'} • ${ws?.location || 'ทำเลคุณภาพ'} (รองรับ ${backendRoom.capacity} ท่าน)`
+                : (preset?.recommendedFor || `เหมาะสำหรับทีม ${backendRoom.capacity} ท่าน`),
+              features: preset?.features || ['จองออนไลน์สะดวก', 'Fiber WiFi ความเร็วสูง', 'Smart Display / Board', 'เครื่องดื่มและบริการ'],
+              pricingRuleDescription: backendRoom.pricingRuleDescription || preset?.pricingRuleDescription || `฿${overridePrice ?? backendRoom.pricePerHour}/ชม.`
             };
           });
 
           merged.sort((a, b) => a.capacity - b.capacity);
           setRooms(merged);
+        } else {
+          setRooms(MEETING_ROOMS_CATALOG.map(room => ({
+            ...room,
+            pricePerHour: customMap[room.roomId]?.price ?? room.pricePerHour,
+            image: customMap[room.roomId]?.image ?? room.image,
+          })));
         }
       } catch (e) {
         console.warn('Using local meeting rooms catalog:', e);
@@ -239,6 +299,9 @@ export default function MeetingRoomsPage() {
     if (sizeFilter === 'small') return room.capacity <= 4;
     if (sizeFilter === 'medium') return room.capacity >= 6 && room.capacity <= 12;
     if (sizeFilter === 'large') return room.capacity > 12;
+    if (sizeFilter === 'dealer') return room.roomId.startsWith('RM-DLR') || (room as any).workspaceId?.startsWith('WS-DLR') || room.tag?.includes('DEALER');
+    if (sizeFilter === 'kmitl') return room.roomId === 'RM-MTG-KMITL';
+    if (sizeFilter === 'mii') return room.roomId === 'RM-MTG-MII';
     return true;
   });
 
@@ -284,7 +347,7 @@ export default function MeetingRoomsPage() {
     };
 
     try {
-      const res = await fetch('http://localhost:8080/api/v1/bookings', {
+      const res = await fetch('/api/v1/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingPayload)
@@ -381,6 +444,36 @@ export default function MeetingRoomsPage() {
               }`}
             >
               ขนาดใหญ่ / Town Hall (20 - 40 ท่าน)
+            </button>
+            <button
+              onClick={() => setSizeFilter('dealer')}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+                sizeFilter === 'dealer'
+                  ? 'bg-teal-400 text-neutral-950 shadow-[0_0_15px_rgba(45,212,191,0.4)]'
+                  : 'bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30'
+              }`}
+            >
+              <span>🏢 พื้นที่ Dealer / พาร์ทเนอร์</span>
+            </button>
+            <button
+              onClick={() => setSizeFilter('kmitl')}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+                sizeFilter === 'kmitl'
+                  ? 'bg-amber-400 text-neutral-950 shadow-[0_0_15px_rgba(251,191,36,0.4)]'
+                  : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30'
+              }`}
+            >
+              <span>🏛️ KMITL Room (สจล.)</span>
+            </button>
+            <button
+              onClick={() => setSizeFilter('mii')}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+                sizeFilter === 'mii'
+                  ? 'bg-teal-400 text-neutral-950 shadow-[0_0_15px_rgba(45,212,191,0.4)]'
+                  : 'bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30'
+              }`}
+            >
+              <span>🏨 Mii Space (บางนา-ศรีนครินทร์)</span>
             </button>
           </div>
         </div>

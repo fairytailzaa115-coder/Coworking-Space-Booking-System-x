@@ -23,4 +23,8 @@ public class MemberResponseDTO {
     private String visaCardNumber;
     private String visaCardHolder;
     private String visaCardExpiry;
+    private String spaceName;
+    private String spaceLocation;
+    private String dealerWorkspaceId;
+    private String dealerRoomId;
 }

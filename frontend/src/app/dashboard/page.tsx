@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { 
   Building2, 
@@ -24,7 +25,9 @@ import {
   QrCode,
   Building,
   Copy,
-  Check
+  Check,
+  ChevronDown,
+  Search
 } from 'lucide-react';
 import { BANK_OPTIONS } from '@/types/banks';
 import BankLogo from '@/components/BankLogo';
@@ -204,12 +207,74 @@ const ALL_ROOMS_CATALOG: Room[] = [
     image: '/images/grand-auditorium.jpg',
     tag: 'TOWN HALL (MAX)',
     pricingRuleDescription: '฿1,800/ชม. + เวที LED Wall & ชุดถ่ายทอดสด ฿500'
+  },
+  {
+    roomId: 'RM-MTG-KMITL',
+    name: 'KMITL Meeting Room สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง',
+    capacity: 16,
+    pricePerHour: 750,
+    status: 'AVAILABLE',
+    roomType: 'MEETING_ROOM',
+    equipmentFee: 200,
+    hasVideoConference: true,
+    hasWhiteboard: true,
+    image: '/images/meeting-room.jpg',
+    tag: 'KMITL ROOM',
+    pricingRuleDescription: '฿750/ชม. + ระบบถ่ายทอดสด & Smart Board สจล. ฿200'
+  },
+  {
+    roomId: 'RM-EXE-KMITL',
+    name: 'KMITL Executive Hall สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง',
+    capacity: 30,
+    pricePerHour: 1200,
+    status: 'AVAILABLE',
+    roomType: 'MEETING_ROOM',
+    equipmentFee: 300,
+    hasVideoConference: true,
+    hasWhiteboard: true,
+    image: '/images/grand-auditorium.jpg',
+    tag: 'PREMIUM HALL',
+    pricingRuleDescription: '฿1,200/ชม. + จอ LED 4K 120 นิ้ว & Cisco Webex ฿300'
+  },
+  {
+    roomId: 'RM-MTG-MII',
+    name: 'Mii Space ห้องประชุมโรงแรม บางนา-ศรีนครินทร์',
+    capacity: 10,
+    pricePerHour: 550,
+    status: 'AVAILABLE',
+    roomType: 'MEETING_ROOM',
+    equipmentFee: 150,
+    hasVideoConference: true,
+    hasWhiteboard: true,
+    image: '/images/summit-boardroom.jpg',
+    tag: 'MII SPACE HOTEL',
+    pricingRuleDescription: '฿550/ชม. + จอโปรเจกเตอร์ 4K & สิ่งอำนวยความสะดวกครบครัน ฿150'
+  },
+  {
+    roomId: 'RM-MTG-VICTOR-FYI',
+    name: 'Victor Club @ FYI Center Meeting Room',
+    capacity: 12,
+    pricePerHour: 200,
+    status: 'AVAILABLE',
+    roomType: 'MEETING_ROOM',
+    equipmentFee: 0,
+    hasVideoConference: true,
+    hasWhiteboard: true,
+    image: '/images/meeting-room.jpg',
+    tag: 'VICTOR CLUB',
+    pricingRuleDescription: '฿200/ชม. · รองรับ 12 ท่าน'
   }
 ];
 
-export default function DashboardPage() {
+function DashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get('search') || '';
+  const targetRoomId = searchParams.get('roomId');
+
   const [rooms, setRooms] = useState<Room[]>(ALL_ROOMS_CATALOG);
-  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'MEETING_ROOM' | 'HOT_DESK' | 'PRIVATE_OFFICE' | 'PHONE_BOOTH'>('ALL');
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'MEETING_ROOM' | 'DEALER_SPACE' | 'HOT_DESK' | 'PRIVATE_OFFICE' | 'PHONE_BOOTH'>('ALL');
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [activeTab, setActiveTab] = useState<'rooms' | 'my-bookings'>('rooms');
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
@@ -224,6 +289,18 @@ export default function DashboardPage() {
   const [bookingPaymentMethod, setBookingPaymentMethod] = useState<'CARD' | 'PROMPTPAY' | 'TRANSFER'>('CARD');
   const [selectedBankId, setSelectedBankId] = useState<string>(BANK_OPTIONS[0].id);
   const [copiedBank, setCopiedBank] = useState(false);
+  const [roomDropdownOpen, setRoomDropdownOpen] = useState(false);
+  const roomDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (roomDropdownRef.current && !roomDropdownRef.current.contains(e.target as Node)) {
+        setRoomDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const [currentMember, setCurrentMember] = useState<{
     memberId: string;
@@ -253,24 +330,62 @@ export default function DashboardPage() {
         setCurrentMember(parsed);
       } catch (e) {}
     }
+
+    // Apply admin customization (price & image overrides)
+    try {
+      const customRaw = localStorage.getItem('adminPageCustomization');
+      if (customRaw) {
+        const customList = JSON.parse(customRaw) as Array<{ id: string; price: number; proPrice: number; image: string }>;
+        const customMap: Record<string, { price: number; image: string }> = {};
+        customList.forEach(r => { customMap[r.id] = { price: r.price, image: r.image }; });
+        setRooms(ALL_ROOMS_CATALOG.map(room => ({
+          ...room,
+          pricePerHour: customMap[room.roomId]?.price ?? room.pricePerHour,
+          image: customMap[room.roomId]?.image ?? room.image,
+        })));
+      }
+    } catch (e) {}
   }, []);
 
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const res = await fetch('http://localhost:8080/api/v1/workspaces/WS-ASOKE/rooms');
-        if (!res.ok) throw new Error('API fetch failed');
-        const data: Room[] = await res.json();
+        const [roomRes, wsRes] = await Promise.all([
+          fetch('/api/v1/rooms').then(r => r.ok ? r.json() : []).catch(() => []),
+          fetch('/api/v1/workspaces').then(r => r.ok ? r.json() : []).catch(() => [])
+        ]);
+        if (Array.isArray(wsRes)) setWorkspaces(wsRes);
+        const wsMap = new Map((wsRes as any[]).map(w => [w.workspaceId, w]));
+        const data: Room[] = Array.isArray(roomRes) ? roomRes : [];
+
         if (data.length > 0) {
-          const merged = data.map(backendRoom => {
-            const preset = ALL_ROOMS_CATALOG.find(p => p.roomId === backendRoom.roomId);
-            return {
-              ...backendRoom,
-              image: preset?.image || '/images/meeting-room.jpg',
-              tag: preset?.tag || backendRoom.roomType || 'ROOM',
-              equipmentFee: backendRoom.equipmentFee ?? preset?.equipmentFee,
-              pricingRuleDescription: backendRoom.pricingRuleDescription || preset?.pricingRuleDescription || `฿${backendRoom.pricePerHour}/ชม.`
-            };
+          const backendMap = new Map(data.map((br: any) => [br.roomId, br]));
+          const merged = ALL_ROOMS_CATALOG.map(preset => {
+            const br = backendMap.get(preset.roomId);
+            if (br) {
+              return {
+                ...preset,
+                ...br,
+                image: (br as any).imageUrl || preset.image || '/images/meeting-room.jpg',
+                tag: preset.tag || br.roomType || 'ROOM',
+                equipmentFee: br.equipmentFee ?? preset.equipmentFee,
+                pricingRuleDescription: br.pricingRuleDescription || preset.pricingRuleDescription || `฿${br.pricePerHour}/ชม.`
+              };
+            }
+            return preset;
+          });
+          data.forEach((br: any) => {
+            if (!merged.some(m => m.roomId === br.roomId)) {
+              const ws = wsMap.get(br.workspaceId);
+              const isDealer = br.workspaceId?.startsWith('WS-DLR') || ws?.type === 'DEALER_SPACE' || br.roomId.startsWith('RM-DLR');
+              merged.push({
+                ...br,
+                roomType: (br as any).roomType || (isDealer || br.roomId.startsWith('RM-MTG') ? 'MEETING_ROOM' : 'ROOM'),
+                image: (br as any).imageUrl || '/images/meeting-room.jpg',
+                tag: isDealer ? `DEALER · ${ws?.name || 'PARTNER'}` : (br.roomType || 'ROOM'),
+                pricingRuleDescription: br.pricingRuleDescription || (isDealer ? `${ws?.name || 'พื้นที่'} • ${ws?.location || ''}` : `฿${br.pricePerHour}/ชม.`)
+              });
+            }
           });
           merged.sort((a, b) => a.capacity - b.capacity);
           setRooms(merged);
@@ -283,12 +398,22 @@ export default function DashboardPage() {
     fetchRooms();
   }, []);
 
+  // Auto-select room if roomId query parameter is present in URL
+  useEffect(() => {
+    if (targetRoomId && rooms.length > 0) {
+      const found = rooms.find(r => r.roomId === targetRoomId);
+      if (found) {
+        setSelectedRoom(found);
+      }
+    }
+  }, [targetRoomId, rooms]);
+
   useEffect(() => {
     if (!currentMember.memberId || currentMember.memberId === 'MEM-001') return;
 
     const loadMyBookings = async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/v1/members/${currentMember.memberId}/bookings`);
+        const res = await fetch(`/api/v1/members/${currentMember.memberId}/bookings`);
         if (!res.ok) throw new Error('Cannot fetch booking history');
         const data = await res.json();
         setMyBookings(data);
@@ -380,7 +505,7 @@ export default function DashboardPage() {
 
     try {
       // Direct call to Spring Boot API
-      const res = await fetch('http://localhost:8080/api/v1/bookings', {
+      const res = await fetch('/api/v1/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingPayload)
@@ -508,7 +633,7 @@ export default function DashboardPage() {
             className={`px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
               activeTab === 'rooms' ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-forest-950 font-black shadow-lg shadow-emerald-500/20' : 'text-emerald-100/60 hover:text-white'
             }`}>
-            <Sparkles className="w-4 h-4" /> พื้นที่ทำงานทั้งหมด ({rooms.length})
+            <Sparkles className="w-4 h-4" /> GreenSpace Coworking ({rooms.filter(r => !r.roomId.includes('KMITL') && !r.roomId.includes('MII')).length})
           </button>
           <button 
             onClick={() => setActiveTab('my-bookings')} 
@@ -533,7 +658,7 @@ export default function DashboardPage() {
                     : 'bg-forest-900/80 text-emerald-100/70 hover:text-white border border-emerald-500/15'
                 }`}
               >
-                ทั้งหมด ({rooms.length})
+                ทั้งหมด ({rooms.filter(r => !r.roomId.includes('KMITL') && !r.roomId.includes('MII')).length})
               </button>
               <button
                 onClick={() => setCategoryFilter('MEETING_ROOM')}
@@ -543,7 +668,17 @@ export default function DashboardPage() {
                     : 'bg-forest-900/80 text-emerald-100/70 hover:text-white border border-emerald-500/15'
                 }`}
               >
-                ห้องประชุม (7)
+                ห้องประชุม ({rooms.filter(r => !r.roomId.includes('KMITL') && !r.roomId.includes('MII') && (r.roomType === 'MEETING_ROOM' || r.roomId.startsWith('RM-MTG') || r.roomId.startsWith('RM-DLR'))).length})
+              </button>
+              <button
+                onClick={() => setCategoryFilter('DEALER_SPACE')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  categoryFilter === 'DEALER_SPACE'
+                    ? 'bg-teal-400 text-forest-950 shadow-md shadow-teal-500/20'
+                    : 'bg-forest-900/80 text-teal-300 hover:text-white border border-teal-500/20'
+                }`}
+              >
+                <span>🏢 พื้นที่ Dealer ({rooms.filter(r => r.roomId.startsWith('RM-DLR') || (r as any).workspaceId?.startsWith('WS-DLR') || (r.tag || '').includes('DEALER')).length})</span>
               </button>
               <button
                 onClick={() => setCategoryFilter('HOT_DESK')}
@@ -577,11 +712,168 @@ export default function DashboardPage() {
               </button>
             </div>
 
+            {/* Venue Dropdown — เลือกห้องประชุมตามสถานที่ */}
+            <div className="mt-4 p-4 rounded-2xl bg-forest-900/40 border border-emerald-500/15">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-emerald-400" />
+                  <span>ห้องประชุมสาขาอื่น (เลือกสถานที่):</span>
+                </div>
+
+                {/* Dropdownlist Selector */}
+                <div className="relative" ref={roomDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setRoomDropdownOpen(prev => !prev)}
+                    className="w-full sm:w-auto flex items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-forest-950 border border-emerald-500/30 hover:border-emerald-400 text-white text-sm font-bold transition shadow-lg min-w-[240px]"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-emerald-400" />
+                      เลือกห้องประชุม
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-emerald-400 transition-transform duration-200 ${roomDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {roomDropdownOpen && (
+                    <div className="absolute top-full mt-2 left-0 z-50 w-full sm:w-[360px] max-h-[420px] overflow-y-auto rounded-2xl border border-emerald-500/30 bg-forest-950/95 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] p-2 space-y-1">
+                      {/* Section 1: Official Hubs */}
+                      <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
+                        พื้นที่หลัก / ศูนย์การศึกษา
+                      </div>
+
+                      {/* KMITL Room */}
+                      <button
+                        type="button"
+                        onClick={() => { setRoomDropdownOpen(false); router.push('/kmitl-room'); }}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-amber-500/10 hover:border-amber-400/30 border border-transparent transition-all text-left group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-base flex-shrink-0">
+                          🏛️
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors truncate">KMITL Room</div>
+                          <div className="text-[10px] text-emerald-100/60 truncate">สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง</div>
+                          <div className="text-[10px] text-amber-400 font-semibold mt-0.5">฿750/ชม. · รองรับ 16–30 ท่าน</div>
+                        </div>
+                      </button>
+
+                      {/* Mii Space */}
+                      <button
+                        type="button"
+                        onClick={() => { setRoomDropdownOpen(false); router.push('/mii-space'); }}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-teal-500/10 hover:border-teal-400/30 border border-transparent transition-all text-left group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-base flex-shrink-0">
+                          🏨
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-white group-hover:text-teal-300 transition-colors truncate">Mii Space</div>
+                          <div className="text-[10px] text-emerald-100/60 truncate">ห้องประชุมโรงแรม บางนา-ศรีนครินทร์</div>
+                          <div className="text-[10px] text-teal-400 font-semibold mt-0.5">฿550/ชม. · รองรับ 10 ท่าน</div>
+                        </div>
+                      </button>
+
+                      {workspaces.filter(ws => ws.workspaceId !== 'WS-ASOKE' && ws.workspaceId !== 'WS-KMITL' && ws.workspaceId !== 'WS-MII').length > 0 && (
+                        workspaces
+                          .filter(ws => ws.workspaceId !== 'WS-ASOKE' && ws.workspaceId !== 'WS-KMITL' && ws.workspaceId !== 'WS-MII')
+                          .map(ws => {
+                            const wsRooms = rooms.filter(r => (r as any).workspaceId === ws.workspaceId);
+                            if (wsRooms.length === 0) {
+                              return (
+                                <div
+                                  key={ws.workspaceId}
+                                  className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-left"
+                                >
+                                  <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-base flex-shrink-0">
+                                    🏢
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold text-white truncate">{ws.name}</div>
+                                    <div className="text-[10px] text-emerald-100/60 truncate">{ws.location}</div>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return wsRooms.map(rm => (
+                              <button
+                                key={rm.roomId}
+                                type="button"
+                                onClick={() => {
+                                  setRoomDropdownOpen(false);
+                                  setCategoryFilter('ALL');
+                                  setSelectedRoom(rm);
+                                }}
+                                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-teal-500/10 hover:border-teal-400/30 border border-transparent transition-all text-left group"
+                              >
+                                <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-base flex-shrink-0">
+                                  🏢
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-bold text-white group-hover:text-teal-300 transition-colors truncate">
+                                    {rm.name}
+                                  </div>
+                                  <div className="text-[10px] text-emerald-100/60 truncate">
+                                    {ws.name} • {ws.location}
+                                  </div>
+                                  <div className="text-[10px] text-teal-400 font-semibold mt-0.5">
+                                    ฿{rm.pricePerHour}/ชม. · รองรับ {rm.capacity} ท่าน
+                                  </div>
+                                </div>
+                              </button>
+                            ));
+                          })
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+
+            {/* Search Results Banner */}
+            {searchQuery && (
+              <div className="mt-4 flex items-center justify-between px-4 py-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25">
+                <div className="flex items-center gap-2 text-xs text-emerald-300 font-semibold">
+                  <Search className="w-4 h-4 text-emerald-400" />
+                  ผลการค้นหา: <span className="text-white font-black">"{searchQuery}"</span>
+                  <span className="text-emerald-100/50">
+                    — พบ {rooms.filter(r => {
+                      if (r.roomId.includes('KMITL') || r.roomId.includes('MII')) return false;
+                      const q = searchQuery.toLowerCase();
+                      return r.name.toLowerCase().includes(q) || (r.tag || '').toLowerCase().includes(q) || (r.roomType || '').toLowerCase().includes(q) || r.roomId.toLowerCase().includes(q) || String(r.capacity).includes(q);
+                    }).length} ห้อง
+                  </span>
+                </div>
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/20 font-bold transition"
+                >
+                  ✕ ล้างค้นหา
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
             {rooms
               .filter(room => {
+                // Exclude KMITL and Mii Space rooms — they have their own dedicated pages
+                if (room.roomId.includes('KMITL') || room.roomId.includes('MII')) return false;
+                // Apply search query filter
+                if (searchQuery) {
+                  const q = searchQuery.toLowerCase();
+                  const matches =
+                    room.name.toLowerCase().includes(q) ||
+                    (room.tag || '').toLowerCase().includes(q) ||
+                    (room.roomType || '').toLowerCase().includes(q) ||
+                    room.roomId.toLowerCase().includes(q) ||
+                    String(room.capacity).includes(q) ||
+                    (room.pricingRuleDescription || '').toLowerCase().includes(q);
+                  if (!matches) return false;
+                }
                 if (categoryFilter === 'ALL') return true;
-                if (categoryFilter === 'MEETING_ROOM') return room.roomType === 'MEETING_ROOM' || room.roomId.startsWith('RM-MTG');
+                if (categoryFilter === 'MEETING_ROOM') return room.roomType === 'MEETING_ROOM' || room.roomId.startsWith('RM-MTG') || room.roomId.startsWith('RM-DLR');
+                if (categoryFilter === 'DEALER_SPACE') return room.roomId.startsWith('RM-DLR') || (room as any).workspaceId?.startsWith('WS-DLR') || (room.tag || '').includes('DEALER');
                 if (categoryFilter === 'HOT_DESK') return room.roomType === 'HOT_DESK' || room.roomId.startsWith('RM-HOT');
                 if (categoryFilter === 'PRIVATE_OFFICE') return room.roomType === 'PRIVATE_OFFICE' || room.roomId.startsWith('RM-OFF');
                 if (categoryFilter === 'PHONE_BOOTH') return room.roomType === 'PHONE_BOOTH' || room.roomId.startsWith('RM-PHN');
@@ -997,5 +1289,13 @@ export default function DashboardPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-forest-950 flex items-center justify-center text-emerald-400 text-sm">กำลังโหลด...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

@@ -23,4 +23,13 @@ public class RegisterMemberRequestDTO {
     private String visaCardNumber;
     private String visaCardHolder;
     private String visaCardExpiry;
+
+    // Dealer Registration fields
+    private String memberType = "REGISTERED"; // "REGISTERED" or "DEALER"
+    private String spaceName;
+    private String spaceLocation;
+    private String spaceDescription;
+    private java.math.BigDecimal roomPricePerHour;
+    private Integer roomCapacity;
+    private String roomImageUrl;
 }

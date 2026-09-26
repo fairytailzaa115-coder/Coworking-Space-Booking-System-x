@@ -30,7 +30,7 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/members/login', {
+      const response = await fetch('/api/v1/members/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password })
@@ -54,10 +54,20 @@ export default function LoginPage() {
         maxMonthlyHours: data.maxMonthlyHours,
         visaCardNumber: data.visaCardNumber,
         visaCardHolder: data.visaCardHolder,
-        visaCardExpiry: data.visaCardExpiry
+        visaCardExpiry: data.visaCardExpiry,
+        spaceName: data.spaceName,
+        spaceLocation: data.spaceLocation,
+        dealerWorkspaceId: data.dealerWorkspaceId,
+        dealerRoomId: data.dealerRoomId
       }));
 
-      router.push('/dashboard');
+      window.dispatchEvent(new Event('memberUpdated'));
+
+      if (data.memberType === 'DEALER') {
+        router.push('/dealer/customize');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     } finally {

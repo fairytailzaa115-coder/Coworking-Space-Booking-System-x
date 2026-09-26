@@ -43,8 +43,8 @@ const TIERS_DATA: Record<string, TierInfo> = {
   PRO: {
     id: 'PRO',
     name: 'Pro Tech',
-    price: 1500,
-    feeText: '฿1,500/เดือน',
+    price: 100,
+    feeText: '฿100/เดือน',
     discount: '15% ส่วนลดทุกห้อง',
     icon: '⚡',
     color: 'from-emerald-500/20 to-teal-500/10',
@@ -53,8 +53,8 @@ const TIERS_DATA: Record<string, TierInfo> = {
   ENTERPRISE: {
     id: 'ENTERPRISE',
     name: 'Enterprise',
-    price: 4500,
-    feeText: '฿4,500/เดือน',
+    price: 150,
+    feeText: '฿150/เดือน',
     discount: '30% ส่วนลดทุกห้อง',
     icon: '🏢',
     color: 'from-violet-500/20 to-purple-500/10',
@@ -74,8 +74,10 @@ function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [tiers, setTiers] = useState<Record<string, TierInfo>>(TIERS_DATA);
+
   const tierParam = searchParams.get('tier')?.toUpperCase() || 'PRO';
-  const selectedTier = TIERS_DATA[tierParam] || TIERS_DATA.PRO;
+  const selectedTier = tiers[tierParam] || tiers.PRO;
 
   const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'PROMPTPAY' | 'TRANSFER'>('CARD');
   const [selectedBankId, setSelectedBankId] = useState<string>(BANK_OPTIONS[0].id);
@@ -89,6 +91,63 @@ function PaymentContent() {
   const [currentMember, setCurrentMember] = useState<any>(null);
 
   useEffect(() => {
+    // 1. First check localStorage for immediate render
+    try {
+      const customMemRaw = localStorage.getItem('adminMembershipCustomization');
+      if (customMemRaw) {
+        const parsedMem = JSON.parse(customMemRaw);
+        setTiers(prev => {
+          const updated = { ...prev };
+          if (parsedMem.BASIC) {
+            updated.BASIC = {
+              ...updated.BASIC,
+              price: parsedMem.BASIC.price,
+              feeText: parsedMem.BASIC.price === 0 ? 'ฟรี' : `฿${parsedMem.BASIC.price.toLocaleString()}/เดือน`
+            };
+          }
+          if (parsedMem.PRO) {
+            updated.PRO = {
+              ...updated.PRO,
+              price: parsedMem.PRO.price,
+              feeText: `฿${parsedMem.PRO.price.toLocaleString()}/เดือน`
+            };
+          }
+          if (parsedMem.ENTERPRISE) {
+            updated.ENTERPRISE = {
+              ...updated.ENTERPRISE,
+              price: parsedMem.ENTERPRISE.price,
+              feeText: `฿${parsedMem.ENTERPRISE.price.toLocaleString()}/เดือน`
+            };
+          }
+          return updated;
+        });
+      }
+    } catch (e) {}
+
+    // 2. Fetch latest membership prices directly from PostgreSQL via Backend API
+    fetch('/api/v1/memberships')
+      .then(res => res.ok ? res.json() : null)
+      .then((dbMemberships: any) => {
+        if (Array.isArray(dbMemberships) && dbMemberships.length > 0) {
+          setTiers(prev => {
+            const updated = { ...prev };
+            dbMemberships.forEach((m: any) => {
+              const tierKey = m.tier?.toUpperCase();
+              const price = Number(m.priceMonthly);
+              if (tierKey && (updated as any)[tierKey]) {
+                (updated as any)[tierKey] = {
+                  ...(updated as any)[tierKey],
+                  price: price,
+                  feeText: price === 0 ? 'ฟรี' : `฿${price.toLocaleString()}/เดือน`
+                };
+              }
+            });
+            return updated;
+          });
+        }
+      })
+      .catch(() => {});
+
     const saved = localStorage.getItem('currentMember');
     if (saved) {
       try {

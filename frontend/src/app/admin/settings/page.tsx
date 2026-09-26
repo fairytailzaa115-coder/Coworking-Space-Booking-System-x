@@ -66,6 +66,14 @@ export default function AdminSettingsPage() {
     cancelled: false
   });
 
+  const [webhookUrl, setWebhookUrl] = useState('http://localhost:8080/api/v1/line/webhook');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setWebhookUrl(`${window.location.origin}/api/v1/line/webhook`);
+    }
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem('currentMember');
     if (!saved) {
@@ -96,7 +104,7 @@ export default function AdminSettingsPage() {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8080/api/v1/admin/settings/line');
+      const res = await fetch('/api/v1/admin/settings/line');
       if (res.ok) {
         const data = await res.json();
         setSettings({
@@ -123,7 +131,7 @@ export default function AdminSettingsPage() {
     setFeedback(null);
 
     try {
-      const res = await fetch('http://localhost:8080/api/v1/admin/settings/line', {
+      const res = await fetch('/api/v1/admin/settings/line', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
@@ -144,7 +152,7 @@ export default function AdminSettingsPage() {
   const handleTest = async () => {
     setTestStatus('กำลังส่งทดสอบ...');
     try {
-      const res = await fetch('http://localhost:8080/api/v1/admin/settings/line/test', {
+      const res = await fetch('/api/v1/admin/settings/line/test', {
         method: 'POST'
       });
       const data = await res.json();
@@ -316,6 +324,26 @@ export default function AdminSettingsPage() {
                     className="w-full bg-[#04100C] border border-[#00FF87]/25 rounded-2xl px-4 py-3 text-xs text-white placeholder:text-[#E6F4EA]/30 focus:outline-none focus:border-[#00FF87] transition disabled:opacity-30 disabled:cursor-not-allowed font-mono"
                   />
                 </div>
+              </div>
+
+              {/* Webhook URL for LINE Developers Console */}
+              <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                    🌐 Webhook URL (สำหรับนำไปใส่ใน LINE Developers Console)
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold">
+                    POST Webhook
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-[#04100C] p-2.5 rounded-xl border border-cyan-500/20 text-xs font-mono text-cyan-200 select-all">
+                    {webhookUrl}
+                  </code>
+                </div>
+                <p className="text-[11px] text-cyan-100/60 leading-relaxed">
+                  * เมื่อนำ Webhook URL นี้ไปใส่ใน LINE Developers Console และเปิดใช้งาน <b>Use Webhook: ON</b> ข้อความที่ผู้ใช้หรือแอดมินพิมพ์ใน LINE จะถูกส่งกลับมาแสดงในหน้าต่างแชทของเว็บไซต์แบบ 2-Way ทันที
+                </p>
               </div>
 
               {/* Optional: LINE Notify Token fallback */}

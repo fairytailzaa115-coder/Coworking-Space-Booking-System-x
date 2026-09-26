@@ -49,7 +49,7 @@ export default function Footer() {
             <h4 className="text-sm font-bold text-white uppercase tracking-wider text-emerald-400">ติดต่อเรา</h4>
             <ul className="space-y-2">
               <li className="flex items-center gap-2"><MapPin className="w-4 h-4 text-emerald-400" /> Interchange 21, Level 24, Asoke, Bangkok</li>
-              <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-emerald-400" /> contact@ecospace.tech</li>
+              <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-emerald-400" /><a href="mailto:contact@ecospace.tech" className="hover:text-emerald-400 transition-colors" data-cfemail="disabled">{'contact@ecospace.tech'}</a></li>
               <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-emerald-400" /> 02-123-4567 (24/7 Support)</li>
             </ul>
           </div>

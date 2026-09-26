@@ -3,18 +3,18 @@ ALTER TABLE members ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT F
 
 INSERT INTO memberships (membership_id, tier, discount_rate, max_monthly_hours, price_monthly) VALUES
 ('MB-BASIC', 'BASIC', 0.00, 20, 0.00),
-('MB-PRO', 'PRO', 0.15, 80, 1500.00),
-('MB-ENT', 'ENTERPRISE', 0.30, 9999, 4500.00)
-ON CONFLICT (tier) DO NOTHING;
+('MB-PRO', 'PRO', 0.15, 80, 100.00),
+('MB-ENT', 'ENTERPRISE', 0.30, 9999, 150.00)
+ON CONFLICT (tier) DO UPDATE SET price_monthly = EXCLUDED.price_monthly;
 
 INSERT INTO workspaces (workspace_id, name, type, location, description, amenities, opening_hours) VALUES
 ('WS-ASOKE', 'Antigravity Hub Sukhumvit', 'COWORKING_SPACE', 'Interchange 21, Level 24, BTS Asoke, Bangkok', 'Tech-forward coworking space with panoramic skyline views, fiber internet, and artisan coffee.', '["1 Gbps Fiber WiFi", "Specialty Espresso Bar", "Ergonomic Chairs", "Podcast Studio", "24/7 Access"]'::jsonb, '07:00 - 23:00')
 ON CONFLICT (workspace_id) DO NOTHING;
 
-INSERT INTO members (member_id, name, email, phone, member_type, membership_id, reward_points) VALUES
-('MEM-001', 'Alex Kittisuk', 'alex.tech@antigravity.dev', '081-234-5678', 'REGISTERED', 'MB-PRO', 120),
-('MEM-002', 'Sarah Enterprise Lead', 'sarah@globalcorp.io', '089-987-6543', 'REGISTERED', 'MB-ENT', 450)
-ON CONFLICT (email) DO NOTHING;
+INSERT INTO members (member_id, name, email, password_hash, phone, member_type, membership_id, reward_points) VALUES
+('MEM-001', 'Alex Kittisuk', 'alex.tech@antigravity.dev', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '081-234-5678', 'REGISTERED', 'MB-PRO', 120),
+('MEM-002', 'Sarah Enterprise Lead', 'sarah@globalcorp.io', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '089-987-6543', 'REGISTERED', 'MB-ENT', 450)
+ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- Admin account: email admin@admin.co.th, password admin123
 INSERT INTO members (member_id, name, email, password_hash, phone, member_type, membership_id, is_admin, reward_points) VALUES

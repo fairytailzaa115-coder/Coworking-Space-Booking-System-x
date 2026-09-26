@@ -1,14 +1,18 @@
+C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\ChatMessage.java
+C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\DealerMember.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\strategy\ProDiscountStrategy.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\dto\LoginResponseDTO.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\Membership.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\dto\RegisterMemberRequestDTO.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\RegisteredMember.java
+C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\repository\ChatMessageRepository.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\LineSetting.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\Booking.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\PrivateOfficeRoom.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\service\LineNotificationService.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\repository\WorkspaceRepository.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\exception\GlobalExceptionHandler.java
+C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\service\ChatService.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\dto\BookingRequestDTO.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\dto\QuoteRequestDTO.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\strategy\EnterpriseDiscountStrategy.java
@@ -31,6 +35,7 @@ C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking Sy
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\exception\DoubleBookingConflictException.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\strategy\StrategyFactory.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\repository\MemberRepository.java
+C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\controller\LineWebhookController.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\Member.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\controller\BookingController.java
 C:\Users\Admin\Desktop\Coworking Space Booking System\Coworking Space Booking System\Coworking Space Booking System\backend\src\main\java\com\coworking\booking\domain\model\Workspace.java

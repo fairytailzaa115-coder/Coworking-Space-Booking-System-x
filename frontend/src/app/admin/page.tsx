@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
-import { CalendarClock, CheckCircle2, Clock3, RefreshCw, ShieldCheck, XCircle, Settings } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock3, RefreshCw, ShieldCheck, XCircle, Settings, ImageIcon } from 'lucide-react';
 
 interface Booking {
   bookingId: string;
@@ -29,7 +29,7 @@ export default function AdminPage() {
   const loadPendingBookings = async (memberId: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/admin/${memberId}/bookings/pending`);
+      const response = await fetch(`/api/v1/admin/${memberId}/bookings/pending`);
       const data = await response.json();
       if (!response.ok) throw new Error(data?.message || 'ไม่สามารถโหลดคำขอจองได้');
       setBookings(data);
@@ -64,7 +64,7 @@ export default function AdminPage() {
     setProcessingId(bookingId);
     setMessage(null);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/bookings/${bookingId}/approve`, {
+      const response = await fetch(`/api/v1/bookings/${bookingId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminMemberId })
@@ -84,7 +84,7 @@ export default function AdminPage() {
     setProcessingId(bookingId);
     setMessage(null);
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/bookings/${bookingId}/reject`, {
+      const response = await fetch(`/api/v1/bookings/${bookingId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminMemberId, reason: 'ไม่อนุมัติโดยผู้ดูแลระบบ' })
@@ -118,6 +118,12 @@ export default function AdminPage() {
             <p className="text-sm text-emerald-100/55 mt-3">ตรวจสอบคำขอจองก่อนยืนยันสิทธิ์การใช้ห้อง</p>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/admin/customize"
+              className="px-4 py-2.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/25 text-violet-300 text-xs font-bold flex items-center gap-2 transition"
+            >
+              <ImageIcon className="w-4 h-4 text-violet-400" /> จัดการหน้าเว็บ
+            </Link>
             <Link
               href="/admin/settings"
               className="px-4 py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/25 text-cyan-300 text-xs font-bold flex items-center gap-2 transition"

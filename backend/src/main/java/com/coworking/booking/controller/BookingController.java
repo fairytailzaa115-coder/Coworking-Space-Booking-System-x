@@ -29,9 +29,19 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.getAllWorkspaces());
     }
 
+    @GetMapping("/rooms")
+    public ResponseEntity<List<Room>> getAllRooms() {
+        return ResponseEntity.ok(bookingService.getAllRooms());
+    }
+
     @GetMapping("/workspaces/{workspaceId}/rooms")
     public ResponseEntity<List<Room>> getRooms(@PathVariable String workspaceId) {
         return ResponseEntity.ok(bookingService.getRoomsByWorkspace(workspaceId));
+    }
+
+    @PostMapping("/rooms")
+    public ResponseEntity<Room> createRoom(@RequestBody Map<String, Object> payload) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(bookingService.createMeetingRoom(payload));
     }
 
     // --- Quotations & Dynamic Pricing ---
@@ -126,5 +136,54 @@ public class BookingController {
                 "sendMode", s.getSendMode(),
                 "enabled", s.isEnabled()
         ));
+    }
+
+    // --- Membership Pricing & Tier Management ---
+    @GetMapping("/memberships")
+    public ResponseEntity<List<com.coworking.booking.domain.model.Membership>> getMemberships() {
+        return ResponseEntity.ok(bookingService.getAllMemberships());
+    }
+
+    @PutMapping("/memberships/{tier}")
+    public ResponseEntity<com.coworking.booking.domain.model.Membership> updateMembership(
+            @PathVariable String tier,
+            @RequestBody Map<String, Object> payload) {
+        return ResponseEntity.ok(bookingService.updateMembership(tier, payload));
+    }
+
+    // --- Room Customization (Pricing & Image) ---
+    @PutMapping("/rooms/{roomId}")
+    public ResponseEntity<Room> updateRoom(
+            @PathVariable String roomId,
+            @RequestBody Map<String, Object> payload) {
+        return ResponseEntity.ok(bookingService.updateRoom(roomId, payload));
+    }
+
+    // --- Dealer Space & Room Management ---
+    @GetMapping("/dealer/{memberId}/space")
+    public ResponseEntity<Map<String, Object>> getDealerSpace(@PathVariable String memberId) {
+        return ResponseEntity.ok(bookingService.getDealerSpace(memberId));
+    }
+
+    @PutMapping("/dealer/{memberId}/space")
+    public ResponseEntity<Map<String, Object>> updateDealerSpace(
+            @PathVariable String memberId,
+            @RequestBody Map<String, Object> payload) {
+        return ResponseEntity.ok(bookingService.updateDealerSpace(memberId, payload));
+    }
+
+    @PostMapping("/dealer/{memberId}/rooms")
+    public ResponseEntity<Room> addDealerRoom(
+            @PathVariable String memberId,
+            @RequestBody Map<String, Object> payload) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(bookingService.addDealerRoom(memberId, payload));
+    }
+
+    @DeleteMapping("/dealer/{memberId}/rooms/{roomId}")
+    public ResponseEntity<Map<String, Object>> deleteDealerRoom(
+            @PathVariable String memberId,
+            @PathVariable String roomId) {
+        bookingService.deleteDealerRoom(memberId, roomId);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "ลบห้องประชุมเรียบร้อยแล้ว"));
     }
 }

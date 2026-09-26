@@ -38,7 +38,7 @@ public abstract class Room {
     @Column(name = "status", nullable = false)
     private String status = "AVAILABLE";
 
-    @Column(name = "image_url")
+    @Column(name = "image_url", columnDefinition = "TEXT")
     private String imageUrl;
 
     public Room(String roomId, String workspaceId, String name, Integer capacity, BigDecimal pricePerHour) {
@@ -58,4 +58,13 @@ public abstract class Room {
     public abstract BigDecimal calculatePrice(BigDecimal durationHours);
 
     public abstract String getPricingRuleDescription();
+
+    @com.fasterxml.jackson.annotation.JsonProperty("roomType")
+    public String getRoomType() {
+        if (this instanceof MeetingRoom) return "MEETING_ROOM";
+        if (this instanceof HotDeskRoom) return "HOT_DESK";
+        if (this instanceof PrivateOfficeRoom) return "PRIVATE_OFFICE";
+        if (this instanceof PhoneBoothRoom) return "PHONE_BOOTH";
+        return "ROOM";
+    }
 }

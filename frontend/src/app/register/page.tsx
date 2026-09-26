@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Leaf, User, Mail, Phone, Lock, ArrowRight,
   Eye, EyeOff, CheckCircle2, Sparkles, Zap, Shield, CreditCard,
-  QrCode, Building, Wallet, Copy, Check
+  QrCode, Building, Wallet, Copy, Check, Building2, MapPin, DollarSign, Users, Image as ImageIcon
 } from 'lucide-react';
 import { BANK_OPTIONS } from '@/types/banks';
 import BankLogo from '@/components/BankLogo';
@@ -63,6 +63,7 @@ function RegisterForm() {
   const searchParams = useSearchParams();
   const initialTier = searchParams.get('tier')?.toUpperCase();
 
+  const [accountType, setAccountType] = useState<'USER' | 'DEALER'>('USER');
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
@@ -75,6 +76,15 @@ function RegisterForm() {
     visaCardHolder: '',
     visaCardExpiry: '',
     visaCardCvv: ''
+  });
+
+  const [dealerData, setDealerData] = useState({
+    spaceName: '',
+    spaceLocation: '',
+    roomPricePerHour: '650',
+    roomCapacity: '12',
+    spaceDescription: '',
+    roomImageUrl: '/images/meeting-room.jpg'
   });
 
   useEffect(() => {
@@ -96,7 +106,9 @@ function RegisterForm() {
 
   const selectedTier = TIERS.find(t => t.id === formData.tier) || TIERS[1];
 
-  const STEPS = formData.tier === 'ENTERPRISE'
+  const STEPS = accountType === 'DEALER'
+    ? ['ข้อมูลผู้ปล่อยเช่าและรหัสผ่าน', 'ข้อมูลห้องประชุมและสถานที่']
+    : formData.tier === 'ENTERPRISE'
     ? ['ข้อมูลส่วนตัว', 'ระดับสมาชิก', 'บัตร Visa', 'รหัสผ่าน', 'ชำระเงิน']
     : formData.tier === 'PRO'
     ? ['ข้อมูลส่วนตัว', 'ระดับสมาชิก', 'รหัสผ่าน', 'ชำระเงิน']
@@ -130,19 +142,33 @@ function RegisterForm() {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/members/register', {
+      const payload: any = {
+        name: formData.name,
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone,
+        password: formData.password,
+        memberType: accountType === 'DEALER' ? 'DEALER' : 'REGISTERED',
+      };
+
+      if (accountType === 'DEALER') {
+        payload.spaceName = dealerData.spaceName.trim();
+        payload.spaceLocation = dealerData.spaceLocation.trim();
+        payload.spaceDescription = dealerData.spaceDescription.trim();
+        payload.roomPricePerHour = parseFloat(dealerData.roomPricePerHour) || 550;
+        payload.roomCapacity = parseInt(dealerData.roomCapacity) || 10;
+        payload.roomImageUrl = dealerData.roomImageUrl || '/images/meeting-room.jpg';
+        payload.tier = 'ENTERPRISE';
+      } else {
+        payload.tier = formData.tier;
+        payload.visaCardNumber = formData.visaCardNumber.replace(/\s+/g, '');
+        payload.visaCardHolder = formData.visaCardHolder;
+        payload.visaCardExpiry = formData.visaCardExpiry;
+      }
+
+      const response = await fetch('/api/v1/members/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password,
-          tier: formData.tier,
-          visaCardNumber: formData.visaCardNumber.replace(/\s+/g, ''),
-          visaCardHolder: formData.visaCardHolder,
-          visaCardExpiry: formData.visaCardExpiry
-        })
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
@@ -156,9 +182,15 @@ function RegisterForm() {
         name: result.name,
         email: result.email,
         phone: result.phone,
+        memberType: result.memberType || (accountType === 'DEALER' ? 'DEALER' : 'REGISTERED'),
         tier: result.membershipTier,
         discountRate: result.discountRate,
         rewardPoints: result.rewardPoints,
+        admin: result.admin,
+        spaceName: result.spaceName,
+        spaceLocation: result.spaceLocation,
+        dealerWorkspaceId: result.dealerWorkspaceId,
+        dealerRoomId: result.dealerRoomId,
         visaCardNumber: result.visaCardNumber,
         visaCardHolder: result.visaCardHolder,
         visaCardExpiry: result.visaCardExpiry
@@ -166,8 +198,13 @@ function RegisterForm() {
 
       window.dispatchEvent(new Event('memberUpdated'));
 
-      setSuccess(`🎉 ชำระเงินและสมัครสมาชิกสำเร็จ! รหัสสมาชิก: ${result.memberId}`);
-      setTimeout(() => router.push('/dashboard'), 1500);
+      if (accountType === 'DEALER') {
+        setSuccess(`🎉 สมัครพาร์ทเนอร์ Dealer สำเร็จ! รหัส: ${result.memberId}`);
+        setTimeout(() => router.push('/dealer/customize'), 1500);
+      } else {
+        setSuccess(`🎉 ชำระเงินและสมัครสมาชิกสำเร็จ! รหัสสมาชิก: ${result.memberId}`);
+        setTimeout(() => router.push('/dashboard'), 1500);
+      }
     } catch (err: any) {
       setError(err.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก');
     } finally {
@@ -177,6 +214,19 @@ function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (accountType === 'DEALER') {
+      if (!dealerData.spaceName.trim()) {
+        setError('กรุณากรอกชื่อแบรนด์/สถานที่ห้องประชุม');
+        return;
+      }
+      if (!dealerData.spaceLocation.trim()) {
+        setError('กรุณากรอกทำเลที่ตั้งของห้องประชุม');
+        return;
+      }
+      await executeRegistration();
+      return;
+    }
+
     if (formData.tier === 'BASIC') {
       if (formData.password !== formData.confirmPassword) {
         setError('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน');
@@ -191,6 +241,22 @@ function RegisterForm() {
 
   const nextStep = () => {
     setError(null);
+
+    // Dealer flow
+    if (accountType === 'DEALER') {
+      if (step === 0) {
+        if (!formData.name.trim()) { setError('กรุณากรอกชื่อ-นามสกุล / ชื่อผู้ติดต่อ'); return; }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!formData.email.trim() || !emailRegex.test(formData.email.trim())) { setError('อีเมลไม่ถูกต้อง'); return; }
+        if (!formData.phone.trim()) { setError('กรุณากรอกเบอร์โทรศัพท์สำหรับติดต่อ'); return; }
+        if (!formData.password || formData.password.length < 4) { setError('กรุณาตั้งรหัสผ่านอย่างน้อย 4 ตัวอักษร'); return; }
+        if (formData.password !== formData.confirmPassword) { setError('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน'); return; }
+      }
+      setStep(s => s + 1);
+      return;
+    }
+
+    // User flow
     if (step === 0) {
       if (!formData.name.trim()) {
         setError('กรุณากรอกชื่อ-นามสกุล'); return;
@@ -367,12 +433,50 @@ function RegisterForm() {
           <div className="w-full max-w-[420px]">
 
             {/* Header */}
-            <div className="mb-8 space-y-2">
+            <div className="mb-6 space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/20 flex items-center justify-center mb-4">
-                <Sparkles className="w-5 h-5 text-emerald-400" />
+                {accountType === 'DEALER' ? (
+                  <Building2 className="w-5 h-5 text-teal-400" />
+                ) : (
+                  <Sparkles className="w-5 h-5 text-emerald-400" />
+                )}
               </div>
-              <h1 className="text-2xl font-black text-white">สมัครสมาชิกใหม่</h1>
-              <p className="text-sm text-emerald-100/50">สร้างบัญชีและเริ่มจองพื้นที่ได้เลย</p>
+              <h1 className="text-2xl font-black text-white">
+                {accountType === 'DEALER' ? 'สมัครพาร์ทเนอร์ผู้ปล่อยเช่า' : 'สมัครสมาชิกใหม่'}
+              </h1>
+              <p className="text-sm text-emerald-100/50">
+                {accountType === 'DEALER'
+                  ? 'นำห้องประชุมของคุณมาปล่อยเช่าและจัดการพื้นที่บนแพลตฟอร์ม'
+                  : 'สร้างบัญชีและเริ่มจองพื้นที่ได้เลย'}
+              </p>
+            </div>
+
+            {/* Account Type Toggle */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-white/[0.04] border border-white/10 rounded-2xl mb-8">
+              <button
+                type="button"
+                onClick={() => { setAccountType('USER'); setStep(0); setError(null); }}
+                className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                  accountType === 'USER'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-forest-950 shadow-md'
+                    : 'text-emerald-100/60 hover:text-white'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                <span>สมาชิกทั่วไป (User)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAccountType('DEALER'); setStep(0); setError(null); }}
+                className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                  accountType === 'DEALER'
+                    ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-forest-950 shadow-md'
+                    : 'text-emerald-100/60 hover:text-white'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>พาร์ทเนอร์ปล่อยเช่า (Dealer)</span>
+              </button>
             </div>
 
             {/* Step indicators */}
@@ -414,8 +518,232 @@ function RegisterForm() {
 
             <form onSubmit={handleSubmit}>
 
-              {/* ── Step 0: Personal Info ── */}
-              {step === 0 && (
+              {/* ── DEALER FLOW: Step 0 (Contact & Password) ── */}
+              {accountType === 'DEALER' && step === 0 && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">ชื่อผู้ติดต่อ / เจ้าของพื้นที่</label>
+                    <div className="relative">
+                      <User className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'name' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                        onFocus={() => setFocused('name')}
+                        onBlur={() => setFocused(null)}
+                        placeholder="ดร. สมชาย พาร์ทเนอร์สเปซ"
+                        required
+                        className={inputClass('name')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">อีเมลสำหรับเข้าสู่ระบบ</label>
+                    <div className="relative">
+                      <Mail className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'email' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                        onFocus={() => setFocused('email')}
+                        onBlur={() => setFocused(null)}
+                        placeholder="dealer@myspace.com"
+                        required
+                        className={inputClass('email')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">เบอร์โทรศัพท์ติดต่อ</label>
+                    <div className="relative">
+                      <Phone className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'phone' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                      <input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                        onFocus={() => setFocused('phone')}
+                        onBlur={() => setFocused(null)}
+                        placeholder="02-123-4567 หรือ 081-xxx-xxxx"
+                        required
+                        className={inputClass('phone')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">รหัสผ่าน</label>
+                    <div className="relative">
+                      <Lock className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'pass' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={formData.password}
+                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                        onFocus={() => setFocused('pass')}
+                        onBlur={() => setFocused(null)}
+                        placeholder="กำหนดรหัสผ่านอย่างน้อย 4 ตัวอักษร"
+                        required
+                        className={inputClass('pass')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">ยืนยันรหัสผ่าน</label>
+                    <div className="relative">
+                      <Lock className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'confirm' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                      <input
+                        type={showConfirm ? 'text' : 'password'}
+                        value={formData.confirmPassword}
+                        onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
+                        onFocus={() => setFocused('confirm')}
+                        onBlur={() => setFocused(null)}
+                        placeholder="กรอกรหัสผ่านอีกครั้ง"
+                        required
+                        className={inputClass('confirm')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirm(!showConfirm)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition"
+                      >
+                        {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className="relative w-full py-3.5 rounded-xl overflow-hidden group font-black text-sm mt-3"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-400 group-hover:from-teal-400 group-hover:to-cyan-300 transition-all duration-200" />
+                    <span className="relative flex items-center justify-center gap-2 text-forest-950 font-black">
+                      ถัดไป: ข้อมูลห้องประชุมและสถานที่ <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {/* ── DEALER FLOW: Step 1 (Space & Room Details) ── */}
+              {accountType === 'DEALER' && step === 1 && (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/30 text-xs text-teal-200">
+                    🏢 <strong>สิทธิพิเศษ Dealer:</strong> คุณสามารถแก้ไขและจัดการราคา รวมถึงรูปภาพเฉพาะห้องประชุมของคุณได้ตลอดเวลาผ่านหน้าเว็บไซต์
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">ชื่อสถานที่ / แบรนด์ห้องประชุม</label>
+                    <div className="relative">
+                      <Building2 className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'spaceName' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                      <input
+                        type="text"
+                        value={dealerData.spaceName}
+                        onChange={e => setDealerData({ ...dealerData, spaceName: e.target.value })}
+                        onFocus={() => setFocused('spaceName')}
+                        onBlur={() => setFocused(null)}
+                        placeholder="เช่น KMITL Meeting Space หรือ Siam Hub"
+                        required
+                        className={inputClass('spaceName')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">ทำเลที่ตั้ง / ที่อยู่</label>
+                    <div className="relative">
+                      <MapPin className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'spaceLocation' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                      <input
+                        type="text"
+                        value={dealerData.spaceLocation}
+                        onChange={e => setDealerData({ ...dealerData, spaceLocation: e.target.value })}
+                        onFocus={() => setFocused('spaceLocation')}
+                        onBlur={() => setFocused(null)}
+                        placeholder="เช่น ลาดกระบัง กรุงเทพมหานคร หรือ BTS อโศก"
+                        required
+                        className={inputClass('spaceLocation')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">ราคาต่อชั่วโมง (฿)</label>
+                      <div className="relative">
+                        <DollarSign className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'roomPrice' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                        <input
+                          type="number"
+                          value={dealerData.roomPricePerHour}
+                          onChange={e => setDealerData({ ...dealerData, roomPricePerHour: e.target.value })}
+                          onFocus={() => setFocused('roomPrice')}
+                          onBlur={() => setFocused(null)}
+                          placeholder="650"
+                          min="1"
+                          required
+                          className={inputClass('roomPrice')}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">ความจุผู้ใช้ (ท่าน)</label>
+                      <div className="relative">
+                        <Users className={`w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused === 'capacity' ? 'text-teal-400' : 'text-emerald-600/60'}`} />
+                        <input
+                          type="number"
+                          value={dealerData.roomCapacity}
+                          onChange={e => setDealerData({ ...dealerData, roomCapacity: e.target.value })}
+                          onFocus={() => setFocused('capacity')}
+                          onBlur={() => setFocused(null)}
+                          placeholder="12"
+                          min="1"
+                          required
+                          className={inputClass('capacity')}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-teal-300 tracking-wide uppercase">รายละเอียดและจุดเด่น</label>
+                    <textarea
+                      value={dealerData.spaceDescription}
+                      onChange={e => setDealerData({ ...dealerData, spaceDescription: e.target.value })}
+                      placeholder="เช่น ห้องประชุมระดับพรีเมียม จอ 4K Ultra HD พร้อมระบบ Video Conference..."
+                      rows={2}
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-xl p-3 text-white text-sm outline-none placeholder:text-emerald-100/25 focus:border-teal-400/50"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep(0)}
+                      className="w-1/3 py-3 rounded-xl border border-white/15 hover:border-white/30 text-white font-bold text-xs transition"
+                    >
+                      ← ย้อนกลับ
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-400 hover:from-teal-400 hover:to-cyan-300 text-forest-950 font-black text-sm transition shadow-lg flex items-center justify-center gap-2"
+                    >
+                      {isLoading ? 'กำลังบันทึกข้อมูล...' : '🚀 เปิดพื้นที่ & สมัคร Dealer'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── USER FLOW: Step 0: Personal Info ── */}
+              {accountType === 'USER' && step === 0 && (
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-emerald-300/70 tracking-wide uppercase">ชื่อ-นามสกุล</label>
@@ -482,8 +810,8 @@ function RegisterForm() {
                 </div>
               )}
 
-              {/* ── Step 1: Tier Selection ── */}
-              {step === 1 && (
+              {/* ── USER FLOW: Step 1: Tier Selection ── */}
+              {accountType === 'USER' && step === 1 && (
                 <div className="space-y-4">
                   <div className="space-y-3">
                     {TIERS.map(tier => (
