@@ -5,9 +5,9 @@ spring:
   application:
     name: coworking-booking-system
   datasource:
-    url: jdbc:postgresql://localhost:5432/coworking_db
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:Za081150}
+    url: ${SPRING_DATASOURCE_URL:${DB_URL:jdbc:postgresql://localhost:5432/coworking_db}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USERNAME:postgres}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:Za081150}}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
