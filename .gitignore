@@ -1,4 +1,10 @@
-node_modules
-.jdk
-.kilo
-.vscode
+node_modules/
+.jdk/
+.kilo/
+.vscode/
+.next/
+frontend/.next/
+*.class
+*.backup
+target/
+.DS_Store

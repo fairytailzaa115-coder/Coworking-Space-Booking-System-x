@@ -198,6 +198,22 @@ const MEETING_ROOMS_CATALOG: Room[] = [
     recommendedFor: 'ประชุมผู้บริหาร ประชุมบริษัท หรือนัดคุยกับลูกค้าในบรรยากาศโรงแรมหรู',
     pricingRuleDescription: '฿550/ชม. + จอโปรเจกเตอร์ 4K & สิ่งอำนวยความสะดวกครบครัน ฿150',
     features: ['จอแสดงผล 4K HDR 65"', 'ระบบเสียงคุณภาพสูง', 'บริการเครื่องดื่มและของว่างระดับโรงแรม', 'ที่จอดรถสะดวกสบาย']
+  },
+  {
+    roomId: 'RM-MTG-VICTOR-FYI',
+    name: 'Victor Club @ FYI Center Meeting Room',
+    capacity: 12,
+    pricePerHour: 200,
+    status: 'AVAILABLE',
+    roomType: 'MEETING_ROOM',
+    equipmentFee: 100,
+    hasVideoConference: true,
+    hasWhiteboard: true,
+    image: '/images/meeting-room.jpg',
+    tag: 'VICTOR CLUB',
+    recommendedFor: 'Victor Club @ FYI Center • ชั้น 2 อาคารเอฟวายไอ เซ็นเตอร์ 2',
+    pricingRuleDescription: '฿200/ชม. · รองรับ 12 ท่าน',
+    features: ['Smart Display / Board', 'อินเทอร์เน็ตความเร็วสูง', 'ระบบแสงและเครื่องเสียงครบครัน', 'ใกล้ MRT ศูนย์การประชุมแห่งชาติสิริกิติ์']
   }
 ];
 

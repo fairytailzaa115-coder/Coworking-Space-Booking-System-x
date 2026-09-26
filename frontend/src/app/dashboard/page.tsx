@@ -773,6 +773,29 @@ function DashboardContent() {
                         </div>
                       </button>
 
+                      {/* Victor Club */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRoomDropdownOpen(false);
+                          const victorRoom = rooms.find(r => r.roomId === 'RM-MTG-VICTOR-FYI');
+                          if (victorRoom) {
+                            setCategoryFilter('ALL');
+                            setSelectedRoom(victorRoom);
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-emerald-500/10 hover:border-emerald-400/30 border border-transparent transition-all text-left group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-base flex-shrink-0">
+                          🏢
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors truncate">Victor Club @ FYI Center Meeting Room</div>
+                          <div className="text-[10px] text-emerald-100/60 truncate">Victor Club @ FYI Center • ชั้น 2 อาคารเอฟวายไอ เซ็นเตอร์ 2...</div>
+                          <div className="text-[10px] text-emerald-400 font-semibold mt-0.5">฿200/ชม. · รองรับ 12 ท่าน</div>
+                        </div>
+                      </button>
+
                       {workspaces.filter(ws => ws.workspaceId !== 'WS-ASOKE' && ws.workspaceId !== 'WS-KMITL' && ws.workspaceId !== 'WS-MII').length > 0 && (
                         workspaces
                           .filter(ws => ws.workspaceId !== 'WS-ASOKE' && ws.workspaceId !== 'WS-KMITL' && ws.workspaceId !== 'WS-MII')
